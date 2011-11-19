@@ -1,0 +1,54 @@
+
+#test compiler
+
+if [ $# != 2 ]
+then
+  echo "Usage: $0 [ JZ4760B ] [ linux | noahos ]"
+  exit 1
+fi
+
+if [ $1 != JZ4760B ]
+then
+  echo -e "\t$1 is not the JZ target cpu (JZ4760B)\n"
+  exit 1
+fi
+
+if [ $2 != linux  -a $2 != noahos ]
+then
+  echo -e "\t$2 is not the valid os  (linux, noahos)\n"
+  exit 1
+fi
+
+if 
+/gcc-mpis/bin/noahos-gcc -v >/dev/null
+then
+  echo "Use compiler mipsel-linux for building"
+else
+  echo "Not found compiler mipsel-linux-gcc"
+  exit 1
+fi
+
+BLDDIR=`pwd`
+if [ x$1 = xJZ4760B -a x$2 = xlinux ]
+then
+./configure --host-cc=gcc --cc="mipsel-linux-gcc -mips32" --target=mips-linux --enable-cross-compile  \
+            --ar="mipsel-linux-ar" --ranlib="mipsel-linux-ranlib"                                     \
+            --disable-x11 --disable-xinerama --disable-vm                                             \
+            --disable-termcap --disable-freetype                                                      \
+            --enable-fbdev  --enable-ossaudio --disable-esd --disable-ivtv                            \
+            --enable-hardcoded-tables --disable-mencoder                                              \
+            --disable-mp3lib --enable-mad                                                             \
+            --disable-faac --disable-faac-lavc --enable-pvr --enable-tv-v4l1 --enable-tv-v4l2         \
+            --extra-ldflags=-L$BLDDIR/libmad                                                          \
+            --extra-cflags="-I$BLDDIR/libmad/libmad-0.15.1b/ -DUSE_IPU_THROUGH_MODE -imacros $BLDDIR/libjzcommon/com_config.h"
+else
+	cp -fv config.h-minios config.h
+	cp -fv config.mak-minios config.mak
+	cp -fv avconfig.h-minios libavutil/avconfig.h
+fi
+
+#            --extra-cflags="$BLDDIR/libmad/libmad-0.15.1b -DUSE_IPU_THROUGH_MODE -imacros libjzcommon/com_config.h"
+#            --with-extraincdir=$BLDDIR/libmad/libmad-0.15.1b --with-extralibdir=$BLDDIR/libmad
+make V=1
+
+
