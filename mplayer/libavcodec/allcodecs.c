@@ -239,6 +239,7 @@ void avcodec_register_all(void)
     REGISTER_ENCDEC  (ALAC, alac);
     REGISTER_DECODER (ALS, als);
     REGISTER_DECODER (AMRNB, amrnb);
+    REGISTER_DECODER (LIBAMR_NB, libamr_nb);
     REGISTER_DECODER (ATRAC1, atrac1);
     REGISTER_DECODER (ATRAC3, atrac3);
     REGISTER_DECODER (BINKAUDIO_DCT, binkaudio_dct);
