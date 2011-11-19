@@ -10,6 +10,7 @@
  *  2007-12-07, dsqiu
  *  Created.
  */
+#include "uclib.h"
 #define VALIDCHECK  0
 
 #define TRUE       1
@@ -64,6 +65,14 @@ static inline int Local_HeapInit(unsigned int heap,unsigned int size)
 }
 /*end heapInit*/
 
+static inline int Addr_overlay_4M_boudary (unsigned int addr, unsigned int size)
+{
+	unsigned int offset = addr & 0x3fffff;
+	unsigned int max_size = 0x400000 - offset;
+	unsigned int ret = (size > max_size);
+
+	return ret;
+}
 static inline int currentNodeAlloc(unsigned int heap,unsigned int i,unsigned int nbytes)
 {
 	unsigned int free_size;
@@ -75,8 +84,43 @@ static inline int currentNodeAlloc(unsigned int heap,unsigned int i,unsigned int
 	    free_size = local_size(i);
 	}
 
-	/*either split current block, use entire current block, or fail*/
+ 	if ((free_size >= nbytes) && Addr_overlay_4M_boudary((i + SIZE_HEADER), nbytes))
+ 	{
+        int dist4M = 0x400000 - ((unsigned int)(i + SIZE_HEADER) & 0x3fffff);
+        // 如果当前块可以拆分
+        if (free_size - dist4M >= nbytes + SIZE_HEADER + MIN_FREE_BYTES)
+        {
+    		unsigned int old_next;
+    		unsigned int old_block;
+    		unsigned int new_block;
+
+    		old_next = local_next(i);
+    		old_block = i;
+
+    		/*fix up original block*/
+
+    		local_next(i) = i+SIZE_HEADER+dist4M;
+    		new_block = local_next(i);
+    		local_status(i)=FREE;
+
+    		/*set up new free block*/
     
+    		i = local_next(i);
+    		local_next(i)=old_next;
+    		local_prev(i)=old_block;
+    		local_status(i)=FREE;
+
+    		/*right nieghbor must point to new free block*/
+    		if(local_next(i)!=0)
+    		{
+    			i = local_next(i);
+    			local_prev(i)=new_block;
+    		}
+        }
+        return(FALSE);
+ 	}
+
+	/*either split current block, use entire current block, or fail*/
 	if(free_size >= nbytes + SIZE_HEADER + MIN_FREE_BYTES)
 	{
 		unsigned int old_next;

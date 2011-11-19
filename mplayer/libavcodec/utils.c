@@ -393,15 +393,13 @@ avcodec_default_get_buffer (AVCodecContext * s, AVFrame * pic)
                 }
               else if (i == 2)
                 {
-                  buf->linesize[i] = picture.linesize[0] - EDGE_WIDTH * 2;
-                  total_size =
-                    (picture.linesize[0] - EDGE_WIDTH * 2) * havail + 256;
+                  buf->linesize[i] = picture.linesize[0];
+                  total_size = size[0];
                 }
               else
                 {
-                  buf->linesize[i] = picture.linesize[0] - EDGE_WIDTH * 2;
-                  total_size =
-                    (picture.linesize[0] - EDGE_WIDTH * 2) * havail / 2 + 128;
+                  buf->linesize[i] = picture.linesize[0];
+                  total_size = size[1] + size[2] + 16;
                 }
 
               buf->base[i] = jz4740_alloc_frame (256, total_size + 16);
@@ -482,15 +480,17 @@ avcodec_default_get_buffer (AVCodecContext * s, AVFrame * pic)
                 {
                   if (i < 2)
                     {
-                      buf->data[i] =
-                        buf->base[i] +
+                      buf->data[i] = buf->base[i] +
                         FFALIGN ((aline[i] * EDGE_WIDTH >> v_shift) +
                                  (ROA >> v_shift) + (EDGE_WIDTH >> h_shift),
                                  ROA);
                     }
                   else
                     {
-                      buf->data[i] = buf->base[i];
+                      if (i == 2)
+                        buf->data[i] = buf->base[i] + havail * EDGE_WIDTH + 256*2;
+                      else
+                      	buf->data[i] = buf->base[i] + havail * EDGE_WIDTH + 128*2;
                     }
                 }
             }
