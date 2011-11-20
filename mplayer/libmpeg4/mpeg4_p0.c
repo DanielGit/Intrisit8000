@@ -38,7 +38,7 @@
 // be aware though that decreasing them may need the number of stages that is
 // passed to get_vlc* to be increased.
 #define SPRITE_TRAJ_VLC_BITS 6
-#define DC_VLC_BITS 9
+#define DC_VLC_BITS 8
 #define MB_TYPE_B_VLC_BITS 4
 
 //uint8_t val[6];

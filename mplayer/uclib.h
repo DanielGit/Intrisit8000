@@ -67,7 +67,7 @@ int printf(const char *fmt, ...);
 #ifdef DEBUG_MEMSET
 #define memset(x,y,z) do{printf("%s:%d->%s\n",__FILE__,__LINE__,__FUNCTION__);uc_memset(x,y,z);}while(0)
 #else
-//#define memset(x,y,z) uc_memset(x,y,z)
+#define memset(x,y,z) uc_memset(x,y,z)
 #endif
 //#undef memmove
 //#define memmove(x,y,z) uc_memcpy(x,y,z)

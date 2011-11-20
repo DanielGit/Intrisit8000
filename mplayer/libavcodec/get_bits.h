@@ -186,8 +186,6 @@ for examples see get_bits, show_bits, skip_bits, get_vlc
         ((uint32_t)name##_cache)
 
 static inline int get_bits_count(const GetBitContext *s){
-//	kprintf("111111111	%d\n",s->index);
-
     return s->index;
 }
 

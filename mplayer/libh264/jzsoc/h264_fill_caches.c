@@ -119,7 +119,7 @@ static av_always_inline int colZeroFlag(int * col_mv){
 }
 
 __cache_text0__ 
-static void pred_direct_motion_cabac(H264Context * const h, int *mb_type){
+static void pred_direct_motion_cabac(H264Context *h, int *mb_type){
   if(h->sps.direct_8x8_inference_flag){
     S32I2M(xr15,0x20002);
     const int mb_xy =   h->mb_xy;//s->mb_x +   s->mb_y*s->mb_stride;
@@ -147,7 +147,7 @@ static void pred_direct_motion_cabac(H264Context * const h, int *mb_type){
       *mb_type |= MB_TYPE_DIRECT2;
     }
 
-    tprintf(s->avctx, "mb_type = %08x, sub_mb_type = %08x, is_b8x8 = %d, mb_type_col = %08x\n", *mb_type, sub_mb_type, is_b8x8, mb_type_col);
+//    tprintf(s->avctx, "mb_type = %08x, sub_mb_type = %08x, is_b8x8 = %d, mb_type_col = %08x\n", *mb_type, sub_mb_type, is_b8x8, mb_type_col);
 
     int is_b16x16=IS_16X16(*mb_type);
     int is_col_intra=IS_INTRA(mb_type_col);

@@ -325,7 +325,11 @@ void *uc_memcpy(void *to,const void *from,unsigned int size)
 }
 void uc_memset_tmp(void *to,unsigned char v,unsigned int size)
 {
+#ifdef NOAH_OS
+	kmemset(to,v,size);	
+#else
 	memset(to,v,size);
+#endif
 }
 void uc_memset(void *to,unsigned char v,unsigned int size)
 {

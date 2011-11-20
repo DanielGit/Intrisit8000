@@ -766,8 +766,7 @@ void *jz4740_alloc_frame (int align, int size)
 	unsigned int max_size = 0x400000 - offset;
 	if (size > max_size)
 	{
-		kprintf("^^^^^^^^^^^^^^^ jz4760_alloc_frame boundary error! addr:0x%08x align:%d size:%d\n", addr, align, size);
-		//while(1);
+		kprintf("^^^^^^^^^^^^^^^ jz4760_alloc_frame boundary error! addr:%p align:%d size:%d\n", addr, align, size);
 	}
 
 	return addr;
