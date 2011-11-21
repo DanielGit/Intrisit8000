@@ -15,30 +15,6 @@ TARGET  := _noahos
 # 连接脚本文件
 LDS     := link.xn
 
-# DUMP
-DUMPFILE := $(DUMPOUT)
-
-# 只需要修改 PRODUCT和P_ID变量的值和config.h定义的一样即可。
-
-# 输出目标文件定义(包含配置文件、系统文件、BIOS文件、系统文件标识、BIOS文件标识、产品ID)
-
-#产品名称与config.h中CONFIG_MAC_(产品型号)宏里的名称相同
-PRODUCT := NP8000
-
-#产品ID与config.h中CONFIG_USB_IDENTIFY_CODE宏的值相同
-P_ID := 0xD800000A
-
-CFGFILE := $(PRODUCT).h
-SYSFILE := $(PRODUCT).bin
-BIOSFILE := $(PRODUCT)bios.bin
-SYSFILEID := NOAHOS_$(PRODUCT)
-BIOSFILEID := NOAH_$(PRODUCT)
-
-TARGETDIR := sys
-ifeq ($(MAKECMDGOALS),bios)
-TARGETDIR := bios
-endif
-
 # 源文件目录
 TOP	:= ../..
 ifneq ($(MAKECMDGOALS),clean)
@@ -47,75 +23,11 @@ ifneq ($(MAKECMDGOALS),cfgbios)
 ifneq ($(MAKECMDGOALS),cfgburn)
 SRCDIRS := 
 
-SRCDIRS += $(TOP)/Init/JZ4760B
-
-SRCDIRS += $(TOP)/Kernel/kArch
-SRCDIRS += $(TOP)/Kernel/kCore
-SRCDIRS += $(TOP)/Kernel/kIpc
-SRCDIRS += $(TOP)/Kernel/kLib
-SRCDIRS += $(TOP)/Kernel/kMem
-SRCDIRS += $(TOP)/Kernel/kSync
-SRCDIRS += $(TOP)/FileSys/FTLV2
-SRCDIRS += $(TOP)/FileSys/FsIo
-SRCDIRS += $(TOP)/FileSys/RFS
-SRCDIRS += $(TOP)/FileSys/FAT
-SRCDIRS += $(TOP)/FileSys/FS
-SRCDIRS += $(TOP)/FileSys/MISC
-SRCDIRS += $(TOP)/FileSys/DEVF
-SRCDIRS += $(TOP)/FileSys/iso9660
-SRCDIRS += $(TOP)/FileSys/iNAND
-SRCDIRS += $(TOP)/FileSys/SDIO
-SRCDIRS += $(TOP)/FileSys/Burn
-SRCDIRS += $(TOP)/GUI/Win
-SRCDIRS += $(TOP)/GUI/WinApi
-SRCDIRS += $(TOP)/GUI/WinDrv
-SRCDIRS += $(TOP)/GUI/WinGdi
-SRCDIRS += $(TOP)/GUI/WinMsg
-SRCDIRS += $(TOP)/GUI/WinTree
-SRCDIRS += $(TOP)/SysLib
-SRCDIRS += $(TOP)/Font/FontApi
-SRCDIRS += $(TOP)/Font/FontDot
-SRCDIRS += $(TOP)/Font/FontDrv
-SRCDIRS += $(TOP)/Font/TrueType/autofit
-SRCDIRS += $(TOP)/Font/TrueType/base
-SRCDIRS += $(TOP)/Font/TrueType/drive
-SRCDIRS += $(TOP)/Font/TrueType/sfnt
-SRCDIRS += $(TOP)/Font/TrueType/smooth
-SRCDIRS += $(TOP)/Font/TrueType/truetype
-ifneq ($(MAKECMDGOALS),lib)
 SRCDIRS += $(TOP)/Direct
 SRCDIRS += $(TOP)/Direct/Media/JZ4760B
 SRCDIRS += $(TOP)/Direct/Media/MediaLib
 SRCDIRS += $(TOP)/Direct/Media/MediaLib/Mp3Dec
 SRCDIRS += $(TOP)/Direct/Media/MediaLib/Midi
-endif
-SRCDIRS += $(TOP)/Direct/Surface/JZ4760B
-SRCDIRS += $(TOP)/Direct/HandWrite
-SRCDIRS += $(TOP)/Direct/Osd/JZ4760B
-SRCDIRS += $(TOP)/Direct/WaveOut/JZ4760B
-
-SRCDIRS += $(TOP)/Peripheral/MultiIo
-SRCDIRS += $(TOP)/Peripheral/Audio
-SRCDIRS += $(TOP)/Peripheral/Clock
-SRCDIRS += $(TOP)/Peripheral/Indicator
-SRCDIRS += $(TOP)/Peripheral/Keyboard
-SRCDIRS += $(TOP)/Peripheral/Lcdc
-SRCDIRS += $(TOP)/Peripheral/NAND
-SRCDIRS += $(TOP)/Peripheral/iNand
-SRCDIRS += $(TOP)/Peripheral/Power
-SRCDIRS += $(TOP)/Peripheral/RTC
-SRCDIRS += $(TOP)/Peripheral/SD
-SRCDIRS += $(TOP)/Peripheral/Touch
-SRCDIRS += $(TOP)/Peripheral/UART
-SRCDIRS += $(TOP)/Peripheral/Mouse
-SRCDIRS += $(TOP)/Peripheral/Usb
-SRCDIRS += $(TOP)/Peripheral/Usb/UsbStack
-SRCDIRS += $(TOP)/Peripheral/Usb/JZ4760B/UsbDev
-SRCDIRS += $(TOP)/Peripheral/Usbhost
-SRCDIRS += $(TOP)/Peripheral/Usbhost/Protocol
-SRCDIRS += $(TOP)/Peripheral/Watchdog
-SRCDIRS += $(TOP)/Peripheral/Memory
-SRCDIRS += $(TOP)/Peripheral/Codec
 
 endif
 endif
@@ -148,25 +60,24 @@ CXXFLAGS   +=
 LDFLAGS    := -nostdlib -T $(LDS)
 
 # 库文件
-MLIBS := mplayer_lib.a libavcodec.a libavcore.a libavformat.a libswscale.a libavutil.a libpostproc.a libmad.a libh264.a libmpeg4.a librv9.a libvc1.a spc.a fipop.a libmpeg2.a
+MLIBS := mplayer_lib.a libavcodec.a libavcore.a libavformat.a libswscale.a libavutil.a libpostproc.a libmad.a libh264.a libmpeg4.a librv9.a libvc1.a spc.a fipop.a libmpeg2.a liba52.a
 
 LIBS  = $(addprefix $(TOP)/UsrLib/libout/JZ4760B/, $(MLIBS))
-LIBS 	+= $(TOP)/Usrlib/libout/libgcc_mipsel.a $(TOP)/Usrlib/libout/mips_klibc.a
+LIBS 	+= _noahos.a $(TOP)/Usrlib/libout/libgcc_mipsel.a $(TOP)/Usrlib/libout/mips_klibc.a
 
 ifeq ($(MAKECMDGOALS), drv)
 LIBS 	+= $(TARGET).a
 endif
 
 # 编译工具路径
-CC      := /noahos/ToolChain/gcc-mips/bin/noahos-gcc 
-CXX     := /noahos/ToolChain/gcc-mips/bin/noahos-g++ 
-AR		:= /noahos/ToolChain/gcc-mips/bin/noahos-ar rcsv
-LD		:= /noahos/ToolChain/gcc-mips/bin/noahos-ld
-OBJCOPY	:= /noahos/ToolChain/gcc-mips/bin/noahos-objcopy
-NM		:= /noahos/ToolChain/gcc-mips/bin/noahos-nm
-OBJDUMP	:= /noahos/ToolChain/gcc-mips/bin/noahos-objdump
+CC      := /gcc-mpis/bin/noahos-gcc 
+CXX     := /gcc-mpis/bin/noahos-g++ 
+AR		:= /gcc-mpis/bin/noahos-ar rcsv
+LD		:= /gcc-mpis/bin/noahos-ld
+OBJCOPY	:= /gcc-mpis/bin/noahos-objcopy
+NM		:= /gcc-mpis/bin/noahos-nm
+OBJDUMP	:= /gcc-mpis/bin/noahos-objdump
 RM      := rm -fr 
-MKDIR   := mkdir
 
 # 允许下面两行，将把C文件按C++编译
 #CC       = $(CXX) 
@@ -178,41 +89,48 @@ MKDIR   := mkdir
 SHELL   = /bin/sh 
 VPATH   := $(SRCDIRS)
 PROGRAM = $(addsuffix .elf, $(TARGET))
+PROGRAM = $(addsuffix .elf, $(TARGET))
 SOURCES = $(foreach d, $(SRCDIRS), $(wildcard $(addprefix $(d)/*, $(SRCEXTS))))
-OBJS	= $(addsuffix .o, $(basename $(notdir $(SOURCES))))
+OBJS    = boot.o $(addsuffix .o, $(basename $(notdir $(SOURCES))))
 DEPS    = $(patsubst %.o, %.d, $(OBJS)) 
 
-.PHONY : all objs clean cleanall rebuild lib bios cfgbios usbboot
+.PHONY : all objs clean cleanall rebuild lib bios cfgbios
 
 # 执行命令. 
 #---------------------------------------------- 
-all : $(PROGRAM) 
+all : $(PROGRAM)
 	@echo 
 	@echo Making logo application...
 	@cp $(TOP)/AppLogo/main.c $(TOP)/AppLogo/main.tmp
 	@mv $(TOP)/AppLogo/main.tmp $(TOP)/AppLogo/main.c
 	@cd $(TOP)/AppLogo/build/MIPS && make
 	@cp -p $(TOP)/AppLogo/build/MIPS/logo.bin ./
-
+#mplayer没有移植完毕, 屏蔽下面这5行.
+#	make_3.81 -C plugin
+#	@echo 
+#	@echo Creating binary...
+#	cp ./plugin/mplayer_plugin.bin ./
+#########
 	$(OBJCOPY) --remove-section .plugin -O binary $(PROGRAM) $(TARGET).bin
-	@echo output dump file 
-	$(if $(DUMPFILE), $(OBJDUMP) -d $(PROGRAM) > $(TARGET).dump)
+#	$(OBJDUMP) -d $(PROGRAM) > $(TARGET).dump
 	$(NM) $(PROGRAM) | sort > $(TARGET).sym
 	$(OBJDUMP) -h $(PROGRAM) > $(TARGET).map
-#	$(OBJDUMP) -d $(PROGRAM) > $(TARGET).dump
-	@sh _release $(P_ID) $(SYSFILEID) $(SYSFILE)
+	@sh _release
+#	cp $(TARGET).bin $(TOP)/ToolChain/uboot-fix/JZ4760B/
 
-cfgsys :
-	cp -p $(TOP)/Include/config/$(CFGFILE) $(TOP)/Include/config.h
+boot.o: boot.xo
+	cp -fv boot.xo boot.o	
 
-bios : $(PROGRAM)
+cfgsys : 
+	cp -p $(TOP)/Include/config/jz4760b.h $(TOP)/Include/config.h
+
+bios : $(PROGRAM) Loader.bin
 	@echo 
 	@echo Making bootloader...
-
 	@make -C $(TOP)/Bootloader/JZ4760B/build_boot clean
 	@make -C $(TOP)/Bootloader/JZ4760B/build_boot
 	@cp $(TOP)/Bootloader/JZ4760B/build_boot/boot.bin ./
-	
+
 	@make -C $(TOP)/Bootloader/JZ4760B/build_loader clean
 	@make -C $(TOP)/Bootloader/JZ4760B/build_loader
 	@cp $(TOP)/Bootloader/JZ4760B/build_loader/loader.bin ./
@@ -224,23 +142,17 @@ bios : $(PROGRAM)
 	@echo 
 	@echo Creating binary...
 	$(OBJCOPY) -O binary $(PROGRAM) $(TARGET).bin
-	$(if $(DUMPFILE), $(OBJDUMP) -d $(PROGRAM) > $(TARGET).dump)
+#	$(OBJDUMP) -d $(PROGRAM) > $(TARGET).dump
 	$(NM) $(PROGRAM) | sort > $(TARGET).sym
 	$(OBJDUMP) -h $(PROGRAM) > $(TARGET).map
-	@sh _bios $(P_ID) $(BIOSFILEID) $(BIOSFILE)
+	@sh _bios
+#	cp $(TARGET).bin $(TOP)/ToolChain/uboot-fix/JZ4760B/
 	
 cfgbios :
 	mv -f $(TOP)/Include/config.h $(TOP)/Include/config.h.old
 	sed 's/^\/\/#define CONFIG_MAKE_BIOS\|^\/\/#define CONFIG_MAKE_BURN_TOOL\|^#define CONFIG_MAKE_BURN_TOOL/#define CONFIG_MAKE_BIOS/' $(TOP)/Include/config.h.old > $(TOP)/include/config.h
 	cat $(TOP)/include/config.h | grep CONFIG_MAKE
-	cat $(TOP)/include/config.h | grep -E "CONFIG_INAND_BOOT|CONFIG_NAND_BOOT" > $(TOP)/Bootloader/JZ4760B/build_boot/bootconfig.mak
-	@sh _bioscfg $(TOP)/Bootloader/JZ4760B/build_boot/bootconfig.mak $(TOP)/Bootloader/JZ4760B/build_boot/bootcfg.mak
 
-usbboot : $(PROGRAM) 
-	@echo 
-	@echo Making USBBoot...
-	$(OBJCOPY) -O binary $(PROGRAM) $(TARGET).bin
-	cp $(TARGET).bin $(TOP)/ToolChain/uboot-fix/JZ4760B/
 
 $(PROGRAM) : $(OBJS)  $(LIBS)
 	@echo 
@@ -263,15 +175,14 @@ drv : $(PROGRAM)
 	$(OBJDUMP) -d $(PROGRAM) > $(TARGET).dump
 	$(NM) $(PROGRAM) | sort > $(TARGET).sym
 	$(OBJDUMP) -h $(PROGRAM) > $(TARGET).map
-	@sh _release $(P_ID) $(SYSFILEID) $(SYSFILE)
-
+	@sh _release
 
 objs : $(OBJS) 
 
 rebuild: clean all 
 
 clean : 
-	$(RM) *.o *.d $(TARGET).* *.bin
+	$(RM) *.o *.d $(TARGET).elf $(TARGET).bin *.bin *.sym *.map #$(TARGET).*
 
 # 生成依赖文件规则
 #--------------------------------------------------- 
