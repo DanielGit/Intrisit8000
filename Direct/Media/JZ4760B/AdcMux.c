@@ -89,6 +89,8 @@ extern void DestroyMediaDevoice(char mode);
 extern void SetMoseCe(char io);
 extern void SetPowerAmplifier(char io);
 extern void __dcache_inv(unsigned long addr, unsigned long size);
+extern void GetDmaInfo();
+extern void SetMuteMode(char mode);
 static void StartDmaPcmTrans(int mute, unsigned int sour);
 
 extern DWORD ClockGetPllValue(void);

@@ -20,8 +20,8 @@
 #include <platform/platform.h>
 
 //设置声音播放的DMA通道
-#define PLAYBACK_CHANNEL		0
-#define RECORD_CHANNEL			0
+#define PLAYBACK_CHANNEL		6
+#define RECORD_CHANNEL			7
 
 
 //#define KPRINTF_DEF
@@ -278,6 +278,7 @@ static void codec_reg_clear(unsigned char addr, unsigned char data)
 ////////////////////////////////////////////////////
 static void set_volume_reg(unsigned char arg)
 {
+	unsigned char tmp;
 	if (arg == 0)
 	{
 		codec_reg_write(CODEC_CGR1, GOL(31));
@@ -292,15 +293,17 @@ static void set_volume_reg(unsigned char arg)
 
 	if (arg >= 8)
 	{
+		tmp = 31 - (arg - 8);
 		codec_reg_write(CODEC_CGR5, GODR(0));
 		codec_reg_write(CODEC_CGR6, GODL(0));
-		codec_reg_write(CODEC_CGR1, GOL(31 - (arg - 8)));
-		codec_reg_write(CODEC_CGR2, GOR(31 - (arg - 8)));
+		codec_reg_write(CODEC_CGR1, GOL(tmp));
+		codec_reg_write(CODEC_CGR2, GOR(tmp));
 	}
 	else
 	{
-		codec_reg_write(CODEC_CGR5, GODR(15 - arg * 2));
-		codec_reg_write(CODEC_CGR6, GODL(15 - arg * 2));
+		tmp = 15 - arg * 2;
+		codec_reg_write(CODEC_CGR5, GODR(tmp));
+		codec_reg_write(CODEC_CGR6, GODL(tmp));
 		codec_reg_write(CODEC_CGR1, GOL(31));
 		codec_reg_write(CODEC_CGR2, GOR(31));
 	}
@@ -330,7 +333,7 @@ static unsigned char get_volume_reg(void)
 ////////////////////////////////////////////////////
 static int intr_handler_playback_dma(int arg)
 {
-	int group,channle,i;
+	int group,channle;
 	unsigned int stat;
 
 	//清除DMA标记
@@ -360,7 +363,7 @@ static int intr_handler_playback_dma(int arg)
 		interrupt_count++;
 	}
 	else
-		kdebug(mod_media, PRINT_INFO, "stat & DCS_TT == 0\n");
+		kdebug(mod_media, PRINT_ERROR, "stat & DCS_TT == 0\n");
 
 	return INT_DONE;
 }
@@ -668,11 +671,12 @@ int pcm_ioctl(unsigned int cmd, unsigned long arg)
 		codec_reg_clear(CODEC_CR4, ADC_HPF); //ADC_HPF
 		break;
 	case PCM_SET_RECORD:
-		kprintf("pcm_ioctl, PCM_SET_RECORD\n");
+		kprintf("pcm_ioctl, PCM_SET_RECORD: %d\n",arg);
 		jz_audio_reset(); /* audio reset */
 		switch (arg)
 		{
 		case MONO_MIC1_IN:
+			kprintf("mono mic1 in record \n");
 			/* set mono mic1 int*/
 			codec_reg_clear(CODEC_PMR1, SB_AIP); //SB_AIP
 			codec_reg_clear(CODEC_PMR1, SB); //SB
@@ -702,6 +706,7 @@ int pcm_ioctl(unsigned int cmd, unsigned long arg)
 			codec_reg_set(CODEC_CR2, NOMAD); //NOMAD
 			break;
 		case LINE_IN:
+			kprintf("line in record \n");
 			/* set line in*/
 			codec_reg_clear(CODEC_PMR1, SB_AIP); //SB_AIP
 			codec_reg_clear(CODEC_PMR1, SB); //SB
@@ -731,6 +736,7 @@ int pcm_ioctl(unsigned int cmd, unsigned long arg)
 			codec_reg_set(CODEC_CR2, NOMAD); //NOMAD
 			break;
 		case STEREO_IN:
+			kprintf("stero in record \n");
 			/* set stereo in*/
 			codec_reg_clear(CODEC_PMR1, SB_AIP); //SB_AIP
 			codec_reg_clear(CODEC_PMR1, SB); //SB
@@ -761,7 +767,7 @@ int pcm_ioctl(unsigned int cmd, unsigned long arg)
 			break;
 
 		default:
-			kprintf("default record \n\n");
+			kprintf("default record \n");
 
 			codec_reg_clear(CODEC_PMR1, SB_AIP); //SB_AIP
 			codec_reg_clear(CODEC_PMR1, SB); //SB
@@ -777,6 +783,10 @@ int pcm_ioctl(unsigned int cmd, unsigned long arg)
 
 		codec_reg_write(CODEC_CGR3, 0x1f);
 		codec_reg_write(CODEC_CGR4, 0x1f);
+		codec_reg_write(CODEC_CGR7, 0x3f);
+		codec_reg_write(CODEC_CGR8, 0x1f);
+		codec_reg_write(CODEC_CGR9, 0x1f);
+		GetDmaInfo();
 		break;
 	case PCM_RESET:
 		kprintf("pcm_ioctl, PCM_RESET\n");
@@ -1047,7 +1057,7 @@ void OpenMediaCodecDevice()
 	fDeviceStatus = DEVICE_OPEN_STATUS;
 
 	//codec寄存器设置
-	codec_reg_write(CODEC_AICR, 0xCF);
+	codec_reg_write(CODEC_AICR, 0xFF);
 	codec_reg_write(CODEC_TR1, 0x00);
 	codec_reg_write(CODEC_IFR, 0xFF);
 	codec_reg_write(CODEC_ICR, 0x2F);
@@ -1057,6 +1067,10 @@ void OpenMediaCodecDevice()
 	codec_reg_write(CODEC_CGR5, 0x1f); //GODL
 	codec_reg_write(CODEC_CGR6, 0x1f);
 
+	codec_reg_write(CODEC_CR1, 0x1b); 
+	codec_reg_write(CODEC_CR2, 0x20); 
+	codec_reg_write(CODEC_CR3, 0x00); 
+	codec_reg_write(CODEC_CR4, 0x80); 
 	MillinsecoundDelay(20);
 
 	// 关闭音量开关
@@ -1120,13 +1134,13 @@ void OpenMediaDevice(unsigned long sample,unsigned long channle , char mode)
 
 	if( !mode )
 	{
- 		pcm_ioctl(PCM_SET_REPLAY,DAC_TO_HP);
+ 		pcm_ioctl(PCM_SET_REPLAY,0);
 		if( hPlayer == NULL )
 			hPlayer = IrqAttach(EIRQ_DMA_BASE + PLAYBACK_CHANNEL, IPL_AUDIO, 0, intr_handler_playback_dma, NULL);
 	}
 	else
 	{
-		pcm_ioctl(PCM_SET_RECORD,MONO_MIC1_IN);
+		pcm_ioctl(PCM_SET_RECORD,0);
 		if( hRecord == NULL )
 			hRecord = IrqAttach(EIRQ_DMA_BASE + RECORD_CHANNEL, IPL_AUDIO, 0, intr_handler_record_dma, NULL);
 	}
@@ -1166,7 +1180,7 @@ void MediaSysInit()
 	REG_AIC_FR |= AIC_FR_ENB;
 
 	/* AIC Configure */
-	REG_AIC_FR |= (AIC_FR_RFTH(16) | AIC_FR_TFTH(24));
+	REG_AIC_FR |= (AIC_FR_RFTH(16) | AIC_FR_TFTH(32));
 	REG_AIC_CR = (AIC_CR_OSS_16BIT | AIC_CR_ISS_16BIT);
 	REG_AIC_CR |= (AIC_CR_RDMS | AIC_CR_TDMS | AIC_CR_RFLUSH | AIC_CR_TFLUSH);
 

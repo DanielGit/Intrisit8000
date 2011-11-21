@@ -22,22 +22,14 @@
 
 #ifndef WIN32
 
-#ifdef CONFIG_MAKE_BIOS
-#undef CONFIG_MAKE_BIOS
+#if defined(CONFIG_MAKE_BIOS) && defined(CONFIG_MPLAYER_ENABLE)
+#undef CONFIG_MPLAYER_ENABLE
 #endif 
-#ifndef CONFIG_MPLAYER_ENABLE
-#define CONFIG_MPLAYER_ENABLE
-#endif
 
-//#if defined(CONFIG_MAKE_BIOS) && defined(CONFIG_MPLAYER_ENABLE)
-//#undef CONFIG_MPLAYER_ENABLE
-//#endif 
-
-#define MPLAYE_MALLOC_SIZE (45 * 1024 * 1024)
-
+#define MPLAYE_MALLOC_SIZE (64 * 1024 * 1024)
 #define MPLAYE_ONLY_MEDIA_MALLOC_SIZE (2 * 1024 * 1024)	//MPLAYER只播放音频使用的内存大小
 
-#define MEDIA_GET_DATA_LEN	(4096)
+#define MEDIA_GET_DATA_LEN	(4*1024)
 #define	MEDIA_LIB_DIRECT	"\\\\DEVICE\\MRESFILE" 
 #define MEMORY_ALIGN_ORDER 22
 
@@ -56,6 +48,8 @@ static DWORD MplayerAudioSpace;
 static DWORD MplayerAudioLenFlag;
 static DWORD MPlayerAllocMemSize;
 static DWORD MplayerDelayCount = 0;
+
+extern DWORD _OSClockTick;
 ////////////////////////////////////////////////////
 // 功能:
 // 输入:
@@ -432,8 +426,8 @@ void* JzCbMalloc(DWORD size)
 	DWORD addr;
 	
 	// 检查是否小内存块
-//	if(size < 32*1024)
-//		return kmalloc(size);
+	if(size < 32*1024)
+		return kmalloc(size);
 	
 	// 大内存块，则直接申请连续页内存
 	size += 2 * sizeof(DWORD);
@@ -442,7 +436,7 @@ void* JzCbMalloc(DWORD size)
 	pentry = kmalloc(sizeof(DWORD)*pages);
 	if(pentry == NULL)
 	{
-		kdebug(mod_media, PRINT_ERROR, "JzCbMalloc malloc failed\n");
+		kdebug(mod_audio, PRINT_ERROR,  "JzCbMalloc malloc failed\n");
 		return NULL;
 	}
 	kmemset(pentry, 0x00, sizeof(DWORD)*pages);
@@ -450,16 +444,17 @@ void* JzCbMalloc(DWORD size)
 	if(PPageAllocPhy(pentry, pages) < 0)
 	{
 		SchedUnlock();
-		kdebug(mod_media, PRINT_ERROR, "JzCbMalloc malloc error\n");
+		kdebug(mod_audio, PRINT_ERROR,  "JzCbMalloc malloc error\n");
 		kfree(pentry);
 		return NULL;
 	}
 	SchedUnlock();
 	addr = *pentry;
-	addr &= 0x0fffffff;
+	addr &= 0x7fffffff;
 	addr |= 0x80000000;
 	*(DWORD*)(addr) = (DWORD)pentry;
 	*(DWORD*)(addr+sizeof(DWORD)) = pages;	
+	
 	return (void*)(addr+2*sizeof(DWORD));
 }
 
@@ -479,9 +474,8 @@ void* JzCbFree(void* mem)
 		return NULL;
 	t = (DWORD)mem;
 	t |= 0x80000000;
-	
 	// 检查是否为页块空间
-//	if(PPagePhySpace(t))
+	if(PPagePhySpace(t))
 	{
 		DWORD pages;
 		DWORD pentry;
@@ -504,87 +498,6 @@ void* JzCbFree(void* mem)
 	return NULL;
 }
 
-////////////////////////////////////////////////////
-// 功能:
-// 输入:
-// 输出:
-// 返回:
-// 说明:
-////////////////////////////////////////////////////
-static PAK_VFILE GetPlayFile(void)
-{
-	int fsize;
-	PAK_VFILE vfile;
-
-	vfile = (PAK_VFILE)kmalloc(sizeof(AK_VFILE));
-	if( vfile == 0)
-	{
-		kdebug(mod_media, PRINT_ERROR, "open GetPlayFile file malloc error\n");
-		return 0;
-	}
-
-	//初始化vfile
-	kmemset(vfile,0,sizeof(AK_VFILE));
-
-	// 打开文件
-	vfile->File = kfopen(MEDIA_LIB_DIRECT, "rb");
-	if(vfile->File == NULL)
-	{
-		kdebug(mod_media, PRINT_ERROR, "plugin file open failed\n");
-		return 0;
-	}
-	
-	// 获取文件大小
-	fsize = kfsize(vfile->File);
-	kfseek(vfile->File, 0, SEEK_SET);
-	
-	// 初始化缓冲参数
-	vfile->PlayLength = fsize;
-	vfile->PlayOffset = 0;
-	vfile->vOffset = 0;
-	return vfile;
-}
-
-////////////////////////////////////////////////////
-// 功能:
-// 输入:
-// 输出:
-// 返回:
-// 说明:
-////////////////////////////////////////////////////
-static PAK_VFILE GetPluginFile()
-{
-	int fsize;
-	PAK_VFILE vfile;
-
-	vfile = (PAK_VFILE)kmalloc(sizeof(AK_VFILE));
-	if( vfile == 0)
-	{
-		kdebug(mod_media, PRINT_ERROR, "open plugin file malloc error\n");
-		return 0;
-	}
-
-	//初始化vfile
-	kmemset(vfile,0,sizeof(AK_VFILE));
-
-	// 打开文件
-	vfile->File = kfopen(MEDIA_LIB_DIRECT, "rb");
-	if(vfile->File == NULL)
-	{
-		kdebug(mod_media, PRINT_ERROR, "plugin file open failed\n");
-		return 0;
-	}
-	
-	// 获取文件大小
-	fsize = kfsize(vfile->File);
-	kfseek(vfile->File, 0, SEEK_SET);
-	
-	// 初始化缓冲参数
-	vfile->PlayLength = fsize;
-	vfile->PlayOffset = 0;
-	vfile->vOffset = 0;
-	return vfile;
-}
 
 ////////////////////////////////////////////////////
 // 功能:
@@ -668,8 +581,10 @@ static int return_func_ff()
 ////////////////////////////////////////////////////
 static float os_audio_get_delay()
 {
-	int len = GetDacBufCount();
-	float time = ((float)len)/1000.0;
+	int len;
+	float time;
+	len = GetDacBufCount();
+	time = ((float)len) / 1000.0;
 	return time;
 }
 
@@ -700,6 +615,18 @@ static int os_audio_play(void* data,int len,int flags)
 // 返回:
 // 说明:
 ////////////////////////////////////////////////////
+static int GetPluginFile()
+{
+	return 0;
+}
+
+////////////////////////////////////////////////////
+// 功能:
+// 输入:
+// 输出:
+// 返回:
+// 说明:
+////////////////////////////////////////////////////
 void GetMplayerMem(int mode)
 {
 	int i;
@@ -715,9 +642,9 @@ void GetMplayerMem(int mode)
 		if(MplayerUsrMem)
 			return;
 		MPlayerAllocMemSize = MPlayerAllocMemSize >> 1;
-		kdebug(mod_media, PRINT_WARNING, "mplayer malloc failed,beigin malloc %x memory\n",MPlayerAllocMemSize);
+		kdebug(mod_audio, PRINT_ERROR, "mplayer malloc failed,beigin malloc %x memory\n",MPlayerAllocMemSize);
 	}
-	kdebug(mod_media, PRINT_ERROR, "mplayer malloc failed\n");
+	kdebug(mod_audio, PRINT_ERROR,  "mplayer malloc failed\n");
 }
 
 ////////////////////////////////////////////////////
@@ -798,19 +725,6 @@ PJz47_AV_Decoder GetCbDecoder()
 // 返回:
 // 说明:
 ////////////////////////////////////////////////////
-void get_mplayer_plugin()
-{
-	HANDLE fp;
-	fp = kfopen(MEDIA_LIB_DIRECT,"rb");
-}
-
-////////////////////////////////////////////////////
-// 功能:
-// 输入:
-// 输出:
-// 返回:
-// 说明:
-////////////////////////////////////////////////////
 void AkCbReinit(PJz47_AV_Decoder cb, PAK_OBJECT obj )
 {
 	PAK_VFILE File;
@@ -861,10 +775,11 @@ void AkCbInit(PJz47_AV_Decoder cb, PAK_OBJECT obj)
 	cb->lcd_height = CONFIG_MAINLCD_YSIZE;
 	cb->lcd_line_length = CONFIG_MAINLCD_XSIZE * CONFIG_MAINLCD_BPP / 8;
 #if (CONFIG_MAINLCD_BPP==32)
-	cb->OutFormat = 30;
+	cb->OutFormat = 30;	//32位
 #else
-	cb->OutFormat = 44;
+	cb->OutFormat = 44;	//16位565
 #endif
+	kdebug(mod_audio, PRINT_INFO, "cb->OutFormat = %d\n",cb->OutFormat);
 #if defined(CONFIG_MPLAYER_ENABLE) && !defined(CONFIG_MAKE_BIOS)
 	cb->lcd_frame_buffer = LcdcVideoOsdBuf();
 #else
@@ -875,11 +790,11 @@ void AkCbInit(PJz47_AV_Decoder cb, PAK_OBJECT obj)
 	cb->os_fread = (void*)JzCbFileRead;
 	cb->os_fwrite = (void*)JzCbFileWrite;
 	cb->os_fseek  = (void*)JzCbFileSeek;
-//	cb->plugstream = GetPluginFile();
+	cb->plugstream = (void*)GetPluginFile();
 	cb->pJzDecoderBuf = MplayerUsrMem;
 	cb->malloc_buf = (unsigned char*)(((unsigned int)cb->pJzDecoderBuf + (1 << MEMORY_ALIGN_ORDER) - 1) & ~((1 << MEMORY_ALIGN_ORDER) - 1));  
 	
-	kdebug(mod_media, PRINT_INFO, "++++ cb->malloc_buf = 0x%08x ++++++\n", cb->malloc_buf);
+	kdebug(mod_audio, PRINT_INFO,  "++++ cb->malloc_buf = 0x%08x ++++++\n", cb->malloc_buf);
 	
 	cb->malloc_size = MPlayerAllocMemSize - (1 << MEMORY_ALIGN_ORDER);
 	
@@ -905,7 +820,7 @@ void AkCbInit(PJz47_AV_Decoder cb, PAK_OBJECT obj)
 	cb->fIpuEnable     = 0;		//是否可以进行IPU
 	cb->kprintf_enable = 1;		//是否打印mplayer中的信息
 
-	MplayerAudioLenFlag = 0;	//
+	MplayerAudioLenFlag = 0;
 #if defined(CONFIG_MPLAYER_ENABLE) && !defined(CONFIG_MAKE_BIOS)
 	//初始化回调函数指针
 	noah_os_init(cb);

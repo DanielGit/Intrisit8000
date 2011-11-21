@@ -21,6 +21,7 @@
 #include <direct/medialib/resample.h>
 
 #define DAC_PCMBUF_SIZE			(1024*2)
+#define DAC_MUTE_PCM_BUF_SIZE	1024
 
 #define DAC_SAMPLE_RATIO		48000
 #define FILTER_PCMBUF_SIZE		(1024*2)
@@ -79,7 +80,7 @@ static char bHeadphoneIn;
 static char fBeginDma;
 static int  fPause;
 static RESAMPLE DacDevice __attribute__((aligned(32)));		//存放DMA数据链
-static short NullBuf[DAC_PCMBUF_SIZE/sizeof(short)];
+static short NullBuf[DAC_MUTE_PCM_BUF_SIZE/sizeof(short)];
 static DWORD nErrorData = 0;	//出现越界的数据个数
 
 extern void SetMuteMode(char mode);
@@ -107,13 +108,19 @@ static void DacWaiteDmaEnd();
 extern int DacGetGloalVolume();
 
 extern DWORD TimerCount(void);
+extern DWORD _OSClockTick;
 
 //#define DAC_SAVE_PCM
 #ifdef DAC_SAVE_PCM
+
+#define MAX_DAC_SIZE 8*1024*1024
+#define MAX_DAC_SOURCE_SIZE		8*1024*1024
+
 static DWORD dac_offset = 0;
-static BYTE dac_buf[5 * 1024 * 1024];
+static BYTE dac_buf[10 * 1024 * 1024];
 static DWORD dac_source_offset = 0;
-static BYTE dac_source_buf[3*1024*1024];
+static BYTE dac_source_buf[10*1024*1024];
+
 #endif
 ////////////////////////////////////////////////////
 // 功能: 设定音频输出设备
@@ -269,8 +276,8 @@ static int SavePcmData( short* pcm )
 			pResample->WriteBuf = 0;
 		return 1;
 	}
-	// 	else 
-	// 		kprintf("save pcm data failed\n");
+//  	else 
+//  		kprintf("save pcm data failed\n");
 	return 0;
 }
 
@@ -296,24 +303,22 @@ static void StartDmaPcmTrans(int mute, unsigned int sour)
 #ifdef DAC_SAVE_PCM
 		kmemcpy(&dac_buf[dac_offset],(BYTE*)sour,DAC_PCMBUF_SIZE);
 		dac_offset += DAC_PCMBUF_SIZE;
-		if( dac_offset >= 4 * 1024 * 1024 )
+		if( dac_offset >= MAX_DAC_SIZE )
 			dac_offset = 0;
 #endif
 		mute_data = 0;
 	} else
 	{	
 		//传送空的数据
-		DmaDataToAic(0, (unsigned int)NullBuf, DAC_PCMBUF_SIZE,1);
+		DmaDataToAic(0, (unsigned int)NullBuf, DAC_MUTE_PCM_BUF_SIZE,1);
 #ifdef DAC_SAVE_PCM
-		kmemcpy(&dac_buf[dac_offset],(BYTE*)NullBuf,DAC_PCMBUF_SIZE);
-		dac_offset += DAC_PCMBUF_SIZE;
-		if( dac_offset >= 4 * 1024 * 1024 )
+		kmemcpy(&dac_buf[dac_offset],(BYTE*)NullBuf,DAC_MUTE_PCM_BUF_SIZE);
+		dac_offset += DAC_MUTE_PCM_BUF_SIZE;
+		if( dac_offset >= MAX_DAC_SIZE )
 			dac_offset = 0;
 #endif
 		if( !fPause )
-			//kdebug(mod_audio, PRINT_INFO, "MUTE: %d-%d\n", ++mute_data, fBeginDma);
-		kprintf( "MUTE: %d-%d\n", ++mute_data, fBeginDma);
-			
+			kdebug(mod_audio, PRINT_INFO, "MUTE: %d-%d\n", ++mute_data, fBeginDma);
 	}
 }
 
@@ -399,14 +404,14 @@ static void DacWriteThread(DWORD p)
 		if( play_flag == 0 )
 		{
 			kMutexRelease(hDacMutex);
-			sTimerSleep(20, NULL);
+			sTimerSleep(10, NULL);
 			continue;
 		}
 
 		if(i == chs )
 		{
 			kMutexRelease(hDacMutex);
-			sTimerSleep(20, NULL);
+			sTimerSleep(10, NULL);
 			continue;
 		}
 
@@ -618,14 +623,14 @@ int DacInit(void)
 
 	//初始化结构体数据
 	kmemset(&DacDevice,0,sizeof(RESAMPLE));
-	kmemset((BYTE*)NullBuf,0xff,DAC_PCMBUF_SIZE);
+	kmemset((BYTE*)NullBuf,0xff,DAC_MUTE_PCM_BUF_SIZE);
 
 	//初始化缓冲
 	for( i = 0 ; i < MAX_PCMBUFS ; i++ )
 		DacDevice.BufFlag[i] = DAC_BUF_WRITE;
 
 	// 创建DAC设备写线程
-	KernelThread(PRIO_USER-11, DacWriteThread, 0, 0);
+	KernelThread(PRIO_USER-15, DacWriteThread, 0, 0);
 
 
 #if defined(CONFIG_ERAPHONE_IO)
@@ -636,7 +641,13 @@ int DacInit(void)
 	//初始化播放声音的GPIO端口
 	SetMoseCe(0);
 
+	//D类功放开机去喀嚓音的特殊处理
+#if defined(CONFIG_MAC_BDS6100) || defined(CONFIG_MAC_ND800) || defined(CONFIG_MAC_ASKMI1388) || defined(CONFIG_MAC_BDS6100A) || defined(CONFIG_MAC_NP7000)
+	SetPowerAmplifier(1);
 	SetPowerAmplifier(0);
+#else
+	SetPowerAmplifier(0);
+#endif
 	return 0;
 }
 
@@ -669,6 +680,10 @@ HANDLE DacOpen(void)
 		return NULL;
 	}
 
+	//防止一个声音暂停时，另外一个声音无法播放的问题
+	if( open_devs )
+		SetMuteMode(1);
+	
 	dac = kmalloc(sizeof(DAC_DEVICE));
 	if(dac == NULL)
 	{
@@ -697,17 +712,20 @@ HANDLE DacOpen(void)
 	dac_offset = 0;
 	dac_source_offset = 0;
 #endif
-	// 本来打开功放, mos管和开dac的工作应该在ListEmpty()==true里面进行.
-	// 但是当打开两路声音, 而且其中一路在暂停状态, 因为暂停的时候关闭了功放和dac,
-	// 所以需要再次打开功放和dac, 于是改成不在判断语句内打开, 对于多个声音合成,
-	// 相当于多打开一次dac和功放, 应该没有影响.
-	//开功放
-	MillinsecoundDelay(250);
-	SetMoseCe(1);
-
 	// 检查当前设备是否已经打开
 	if(ListEmpty(&DacList))
 	{
+		// 本来打开功放, mos管和开dac的工作应该在ListEmpty()==true里面进行.
+		// 但是当打开两路声音, 而且其中一路在暂停状态, 因为暂停的时候关闭了功放和dac,
+		// 所以需要再次打开功放和dac, 于是改成不在判断语句内打开, 对于多个声音合成,
+		// 相当于多打开一次dac和功放, 应该没有影响.
+#if defined(CONFIG_MAC_NP7000)
+		MillinsecoundDelay(250);
+
+		SetMoseCe(1);
+#else
+		SetPowerAmplifier(1);
+#endif
 		// 打开DA设备
 		DacDeviceOpen();
 
@@ -721,18 +739,26 @@ HANDLE DacOpen(void)
 		kSemaRelease(hDacSema);
 
 		ListInsert(&DacList, &dac->Link);
+
+		//只有第一次打开声音设备才需要去掉BOBO音
+#if defined(CONFIG_MAC_NP7000)
+		MillinsecoundDelay(250);
+
+		SetPowerAmplifier(1);
+
+#else
+		MillinsecoundDelay(120);
+
+		SetMoseCe(1);
+
+		MillinsecoundDelay(30);
+
+		SetMuteMode(1);
+#endif
 	}
 	else
 		ListInsert(&DacList, &dac->Link);
 
-
-	MillinsecoundDelay(250);
-
-	SetPowerAmplifier(1);
-
-	//防止一个声音暂停时，另外一个声音无法播放的问题
-	if( open_devs )
-		SetMuteMode(1);
 
 	kMutexRelease(hDacMutex);
 	return (HANDLE)dac;
@@ -791,6 +817,7 @@ int DacClose(HANDLE hdac)
 			fp = kfopen("d:\\source.bin","w+b");
 			kfwrite(dac_source_buf,1,dac_source_offset,fp);
 			kfclose(fp);
+			kprintf("save pcm file save finish\n");
 		}
 #endif
 		kfree(dac);
@@ -849,7 +876,6 @@ static int DacPcmQueue(short *dst, short *src, int *outsize, int *insize, int ch
 // 返回: 
 // 说明: 
 ////////////////////////////////////////////////////
-extern volatile unsigned int _OSClockTick;
 int DacWrite(HANDLE hdac, short *src, int len)
 {
 	PDAC_DEVICE dac;
@@ -859,7 +885,7 @@ int DacWrite(HANDLE hdac, short *src, int len)
 	volatile BYTE *flag;
 	int wsize, rsize,error_delay;
 	int offset,fltr_in;
-	int len_bak,pcm_in,wsola_in;
+	int len_bak,pcm_in,wsola_in,start_flag;
 	DWORD nWsolaSize;
 
 	// 获取设备对象
@@ -868,6 +894,7 @@ int DacWrite(HANDLE hdac, short *src, int len)
 		return -1;
 
 	presample = &dac->Resample;
+	start_flag = dac->fThreadStart;
 
 	len_bak = len;
 	dst = NULL;
@@ -879,9 +906,10 @@ int DacWrite(HANDLE hdac, short *src, int len)
 #if defined(DAC_SAVE_PCM)
 	kmemcpy(&dac_source_buf[dac_source_offset],(BYTE*)src,len);
 	dac_source_offset += len;
-	if( dac_source_offset >= 2 * 1024 * 1024 )
+	if( dac_source_offset >= MAX_DAC_SOURCE_SIZE )
 		dac_source_offset = 0;
 #endif
+
 	while(len)
 	{
 		if( dac->WsolaBuf && dac->hWsola )
@@ -951,8 +979,6 @@ int DacWrite(HANDLE hdac, short *src, int len)
 			else
 				wsize = DAC_PCMBUF_SIZE;
 			rsize = pcm_in;
-			
-//			int tick=_OSClockTick;
 
 			// 等待当前缓冲区可写
 			error_delay = 0;
@@ -969,8 +995,6 @@ int DacWrite(HANDLE hdac, short *src, int len)
 						return 0;
 				}
 			}
-
-//			kprintf("+++++++++++   %d\n",_OSClockTick-tick);
 
 			// 写入数据到BUF
 			DacPcmQueue(dst, pcm_src, &wsize, &rsize, dac->Channel);
@@ -993,7 +1017,11 @@ int DacWrite(HANDLE hdac, short *src, int len)
 		}	
 	}
 
-
+	if( start_flag == 0 && dac->fThreadStart == 1 )
+	{
+		kprintf("dac write sleep\n");
+		sTimerSleep(10, NULL);
+	}
 	return len_bak;
 }
 
@@ -1090,7 +1118,7 @@ int DacWriteEnd(HANDLE hdac, int terminate)
 	dac = (PDAC_DEVICE)hdac;
 	if(dac == NULL)
 		return -1;
-	if(terminate)
+	if( terminate )
 		return 0;
 
 	// 获取写缓冲区指针
@@ -1522,6 +1550,8 @@ int GetDacBufCount()
 {
 	int i;
 	int len;
+	PLIST head, n;
+	PDAC_DEVICE dac;
 	PRESAMPLE presample;
 
 	len = 0;
@@ -1532,6 +1562,22 @@ int GetDacBufCount()
 			len +=DAC_PCMBUF_SIZE;
 		else if( presample->BufFlag[i] == DAC_BUF_READING )
 			len += GetDmaCount();
+	}
+
+	head = &DacList;
+	if( head )
+	{
+		n=ListFirst(head);
+		dac = ListEntry(n, DAC_DEVICE, Link);
+		if( dac )
+		{
+			presample = &dac->Resample;
+			for( i = 0 ; i < MAX_PCMBUFS ; i++ )
+			{
+				if( presample->BufFlag[i] == DAC_BUF_READ )
+					len +=DAC_PCMBUF_SIZE;
+			}
+		}
 	}
 
 	return ( (len*1000) / (DAC_SAMPLE_RATIO*2*2) );

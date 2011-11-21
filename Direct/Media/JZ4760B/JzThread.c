@@ -23,14 +23,11 @@
 #include <gui/winmsg.h>
 #include <filesys/fs.h>
 
-//#define	MPLAYER_DEBUG
-#define RECORD_FADE		1400
-#define RECODE_SKIP_LEN	0		//录音结束以后，清除最后的录音数据，防止录入按间声音
+//#define	MPLAYER_PRINTF_ENABEL
+#define RECORD_FADE		800
+#define MAX_PCM_GET_LEN 4* 8192
 
-#define kdebug(x,y,z,a...) kprintf(z,##a)
-#ifdef CONFIG_MAKE_BIOS
-#undef CONFIG_MAKE_BIOS
-#endif
+#define RECODE_SKIP_LEN	400		//录音结束以后，清除最后的录音数据，防止录入按间声音
 
 typedef struct
 {
@@ -73,12 +70,21 @@ extern void dma_cache_wback_inv(unsigned long addr, unsigned long size);
 extern void MediaClearUsrScreen( PMEDIA_TASK task,BYTE format );
 extern void MillinsecoundDelay(unsigned int msec);
 extern int GetDacBufCountMs();
+extern int syslog_set_core_mask(unsigned long mask);
+extern int syslog_set_global_level(char level);
+#if defined(STC_EXP)
+extern int sKmInfo(DWORD *blks, DWORD *alcsize);
+#else
+extern int KmInfo(DWORD *blks, DWORD *alcsize);
+#endif
 
 BYTE* pMediaPcmData = NULL;
 DWORD nMediaPcmLen = 0;
 BYTE  fPlayMedia = 0;
 BYTE  fRecodeWav = 0;
-BYTE fLcdVideo = 0;
+BYTE  fLcdVideo = 0;
+
+extern DWORD _OSClockTick;
 ////////////////////////////////////////////////////
 // 功能: 
 // 输入: 
@@ -91,6 +97,7 @@ static void JzThreadGetInfo(DWORD p)
  	PAK_VFILE vfile;
  	PAK_OBJECT obj;
 	PMEDIA_TASK task;
+	int ret;
 	
 	// 获取打开信息
  	obj = (PAK_OBJECT)p;
@@ -103,28 +110,37 @@ static void JzThreadGetInfo(DWORD p)
 	obj->PlayerType = task->ExterdType;
 
 	//初始化回调函数
-	if( MediaLibInit(obj) < 0 )
+	if((ret = MediaLibInit(obj)) < 0 )
 	{
-		kdebug(mod_media, PRINT_ERROR, "MediaLibInit failed.\n");
+		kdebug(mod_audio, PRINT_ERROR, "MediaLibInit failed.\n");
 		*obj->bReady = -1;
- 		goto ThreadEnd;
+		if( ret == -2 )
+			goto ThreadEnd1;
+		else
+			goto ThreadEnd;
 	}
+
+	kdebug(mod_audio, PRINT_INFO, "mplayer init end = %d\n",TimerCount());
 
 	//打开音频库
 	if( MediaLibOpen(obj, 1) < 0 )
 	{	//音频库打开失败
-		kdebug(mod_media, PRINT_ERROR, "MediaLibOpen failed.\n");
+		kdebug(mod_audio, PRINT_ERROR, "MediaLibOpen failed.\n");
 		*obj->bReady = -1;
  		goto ThreadEnd;
 	}
 
+	kdebug(mod_audio, PRINT_INFO, "mplayer MediaLibOpen end = %d\n",TimerCount());
+
 	//得到音频库信息
 	if( MediaLibGetInfo(obj) < 0 )
 	{	//得到音频库信息失败
-		kdebug(mod_media, PRINT_ERROR, "MediaLibGetInfo failed.\n");
+		kdebug(mod_audio, PRINT_ERROR, "MediaLibGetInfo failed.\n");
 		*obj->bReady = -1;
  		goto ThreadEnd;
 	}
+
+	kdebug(mod_audio, PRINT_INFO, "mplayer MediaLib Getinfo end = %d\n",TimerCount());
 	if( obj->Info.bHasVideo )
 	{	//视频文件，需要计算视频的显示尺寸
 		SetVideoPosAndSize(obj,task);
@@ -132,8 +148,10 @@ static void JzThreadGetInfo(DWORD p)
 	obj->bGetInfo = 0;
 	*obj->bReady = 1;
 	
+	kdebug(mod_audio, PRINT_INFO, "mplayer MediaLib resize end = %d\n",TimerCount());
 ThreadEnd:
-//	MediaLibClose(obj);
+	MediaLibClose(obj);
+ThreadEnd1:
 
 	// 设置线程结束标志	
 	if(obj->bTerminate)
@@ -179,8 +197,8 @@ static void AkThreadVideoPlay(DWORD p)
 	delay_time = 0;
 	totle_time = 0;
 	totle_fps  = 0;
+	fLcdVideo  = 1;
 	video->fPlayVideo = 1;
-	fLcdVideo = 1;
 	frame_time = TimerCount();
 	obj = video->obj;
 	MxuEnable();
@@ -203,7 +221,7 @@ static void AkThreadVideoPlay(DWORD p)
 			totle_fps++;
 		}
 		
-//		kprintf("%d,%d\n",pts,audio_time);
+//		kdebug(mod_audio, PRINT_INFO, "video: %d,%d\n",pts,audio_time);
 		if(pts < 0)
 		{
 			player_status = MediaLibGetStatus(obj);
@@ -254,14 +272,14 @@ static void AkThreadVideoPlay(DWORD p)
 
 		kMutexRelease(video->hMutex);
 
-		// 获取Sleep时间
+/*		// 获取Sleep时间
 		if((DWORD)pts > audio_time && player_status == MEDIALIB_PLAYING )
 		{
 			delay_time += (DWORD)pts-audio_time;
 			if( delay_time >= 50 )
 			{	//延迟时间大于100ms,防止seek以后，VIDEO立即执行到SEEK点，PTS正确，但是
 				//音频时间没有马上到SEEK点，延后，导致停止时间过长，VIDEO卡住
-//				kprintf("pts = %d,video delay = %d\n",(DWORD)pts,delay_time);
+//				kdebug(mod_audio, PRINT_INFO, "pts = %d,video delay = %d\n",(DWORD)pts,delay_time);
 				back_time  = delay_time;
 				back_count = 0;
 				while(1)
@@ -286,7 +304,7 @@ static void AkThreadVideoPlay(DWORD p)
 						break;
 
 					delay_time = (DWORD)pts - audio_time;
-//					kprintf("video fac delay = %d,audio_time = %d, cur_time = %d\n",delay_time,audio_time,cur_time);
+//					kdebug(mod_audio, PRINT_INFO, "video fac delay = %d,audio_time = %d, cur_time = %d\n",delay_time,audio_time,cur_time);
 					if( delay_time > 50 )
 					{
 						sTimerSleep(50, NULL);
@@ -306,6 +324,7 @@ static void AkThreadVideoPlay(DWORD p)
 				delay_time = delay_time % 10;
 			}
 		}
+*/
 
 		// 等待退出暂停状态
 		while( MEDIALIB_PAUSE == player_status && !obj->bClose && !obj->bTerminate)
@@ -321,14 +340,12 @@ static void AkThreadVideoPlay(DWORD p)
 	kdebug(mod_video, PRINT_INFO, "totle_fps = %d, total_time = %d\n",totle_fps,totle_time);
 	kdebug(mod_video, PRINT_INFO, "video thread close\n");
 	video->fPlayVideo = 0;
-	fLcdVideo = 0;
 #if defined(STC_EXP)
 	sThreadTerminate(sThreadSelf());
 #else
 	ThreadTerminate(ThreadSelf());
 #endif
 }
-
 
 ////////////////////////////////////////////////////
 // 功能: 
@@ -358,16 +375,34 @@ static void JzThreadPlayFile(DWORD p)
 	int block_num;
 	DWORD init_start_time,init_end_time;
 
+#ifdef MPLAYER_PRINTF_ENABEL
+	syslog_set_global_level(PRINT_INFO);
+#endif
+
 	// 获取打开信息
 	obj = (PAK_OBJECT)p;
 	task = &obj->Task;
 	vfile = &obj->File;
 	init_start_time = TimerCount();
 	kdebug(mod_audio, PRINT_INFO, "mplayer init player time = %d\n",init_start_time);
+	obj->PlayerType = task->ExterdType;
 #ifdef CONFIG_MAKE_BIOS
 	task->ExterdType = 0;
 #endif
-	obj->PlayerType = task->ExterdType;
+	{
+		DWORD blks,alcsz;
+#if defined(STC_EXP)
+		sKmInfo(&blks, &alcsz);
+#else
+		KmInfo(&blks,&alcsz);
+#endif
+		kdebug(mod_audio, PRINT_INFO, "mplayer begin memory: %x-%x\n",blks,alcsz);
+	}
+	if( task->ExterdType )
+		kdebug(mod_audio, PRINT_INFO, "use mplayer\n");
+	else
+		kdebug(mod_audio, PRINT_INFO, "use inner player\n");
+	
 	pcm          = NULL;
 	obj->hDac    = NULL;
 	video.hMutex = NULL;
@@ -381,6 +416,7 @@ static void JzThreadPlayFile(DWORD p)
 			MediaLibClose(obj);
  		goto ThreadEnd;
 	}
+	kdebug(mod_audio, PRINT_INFO, "mplayer MediaLibInit end = %d\n",TimerCount());
 
 	if( task->ExterdType )
 	{
@@ -411,6 +447,7 @@ static void JzThreadPlayFile(DWORD p)
 		MediaLibClose(obj);
  		goto ThreadEnd;
 	}
+	kdebug(mod_audio, PRINT_INFO, "mplayer MediaLibOpen end = %d\n",TimerCount());
 
 	//得到音频库信息
 	if( MediaLibGetInfo(obj) < 0 )
@@ -424,25 +461,21 @@ static void JzThreadPlayFile(DWORD p)
 	if( !obj->Info.bHasAudio  )
 	{	//没有音频数据，直接退出
 		*obj->bReady = -1;
-		kdebug(mod_audio, PRINT_ERROR, "get auido data failed\n");
 		MediaLibClose(obj);
  		goto ThreadEnd;
 	}
-		if( obj->Info.bHasVideo )
-	{	//视频文件，需要计算视频的显示尺寸
-		SetVideoPosAndSize(obj,task);
-	}
+
 	if(obj->Info.bHasVideo)
 	{
 		//有视频，但是播放区域为空，直接退出（MP3里面播放改名的RMVB等。。。。）
 		if( !(task->ShowRect.w  && task->ShowRect.h) )
 		{
 			*obj->bReady = -1;
-			kdebug(mod_video, PRINT_ERROR, "video failed\n");
 			MediaLibClose(obj);
  			goto ThreadEnd;
 		}
 	}
+	kdebug(mod_audio, PRINT_INFO, "mplayer MediaLibGetInfo end = %d\n",TimerCount());
 
 	if( obj->PlayerType )
 	{	//设置视频的显示区域以及位置
@@ -461,7 +494,7 @@ static void JzThreadPlayFile(DWORD p)
 	}
 
 	//申请播放PCM的内存
-	block_num = 8192 * 4;
+	block_num = MAX_PCM_GET_LEN;
 	pcm = (short*)kmalloc(block_num);
 	if( pcm == NULL )
 	{
@@ -470,6 +503,7 @@ static void JzThreadPlayFile(DWORD p)
 		MediaLibClose(obj);
 		goto ThreadEnd;
 	}
+	kdebug(mod_audio, PRINT_INFO, "mplayer kmalloc pcm end = %d\n",TimerCount());
 
 	//MPLAYER播放器使用,用来设置从MPLAYER读到的PCM数据以及长度
 	if( obj->PlayerType )
@@ -497,6 +531,7 @@ static void JzThreadPlayFile(DWORD p)
 		goto ThreadEnd;
 	}
 
+	kdebug(mod_audio, PRINT_INFO, "mplayer dacopen end = %d\n",TimerCount());
 	DacSetTempo(obj->hDac, obj->Task.Tempo);
 	DacSetVolume(obj->hDac, obj->Task.Volume);
 	kdebug(mod_audio, PRINT_INFO, "volume = %d, tempo=%d\n",obj->Task.Volume, obj->Task.Tempo);
@@ -567,6 +602,7 @@ static void JzThreadPlayFile(DWORD p)
 	init_end_time = TimerCount();
 	kdebug(mod_audio, PRINT_INFO, "mplayer start play time = %d\n",init_end_time);
 	kdebug(mod_audio, PRINT_INFO, "playe init time = %dms\n",(init_end_time-init_start_time)*10);
+	kdebug(mod_audio, PRINT_INFO, "obj->StartTime = %d, Obj->EndTime = %d\n",obj->StartTime,obj->EndTime);
 	while(!obj->bClose && !obj->bTerminate)
 	{
 		// 解码音频数据
@@ -575,17 +611,21 @@ static void JzThreadPlayFile(DWORD p)
 
 		//得到PCM数据
 		player_status = MediaLibGetStatus(obj);
-			
+		{
+			DWORD start_t,end_t;
+			start_t = _OSClockTick;
+			wlen = MediaLibGetPcm(obj,(BYTE*)pcm,block_num);
+			end_t = _OSClockTick;
+//			kdebug(mod_audio, PRINT_INFO, "get pcm: %d\n",end_t - start_t);
+		}
 		
-		wlen = MediaLibGetPcm(obj,(BYTE*)pcm,block_num);//audio only 8K has video 16K
-	
-//		kprintf("wlen = %d\n",wlen);
+//		kdebug(mod_audio, PRINT_INFO, "wlen = %d\n",wlen);
 		if((wlen<0) || (player_status==MEDIALIB_END) || (player_status==MEDIALIB_ERR))
 		{
 			DacWriteEnd(obj->hDac, 0);
 			if(MEDIALIB_ERR == player_status)
 			{
-				kdebug(mod_media, PRINT_ERROR, "media lib error!\n");
+				kdebug(mod_audio, PRINT_INFO, "media lib error!\n");
 				obj->bClose = 2;
 			}
 			else
@@ -595,9 +635,10 @@ static void JzThreadPlayFile(DWORD p)
 			kdebug(mod_audio, PRINT_INFO, "wlen = %d, player_status = %d\n",wlen,player_status);
 			break;
 		}
+
 		// 获取当前音频解码时间
 		cur_time = MediaLibGetAudioCurTime(obj);
-//		kprintf("cur time = %d\n",cur_time);
+//		kdebug(mod_audio, PRINT_INFO, "cur time = %d\n",cur_time);
 		if( obj->StartTime )
 		{
 			MediaLibSeek(obj,obj->StartTime);
@@ -611,7 +652,7 @@ static void JzThreadPlayFile(DWORD p)
 			obj->bClose = 1;
 			if(video.hMutex)
 				kMutexRelease(video.hMutex);
-			kprintf("play seek end: cur time = %d, end time = %d\n",cur_time,obj->EndTime);
+			kdebug(mod_audio, PRINT_INFO, "play seek end: cur time = %d, end time = %d\n",cur_time,obj->EndTime);
 			break;
 		}
 
@@ -621,9 +662,8 @@ static void JzThreadPlayFile(DWORD p)
 		//开始播放时，wlen = 0,此时需要VIDEO线程运行，同时给AUDIO解锁
 		if( wlen == 0 && obj->Info.bHasVideo )
 			sTimerSleep(20, NULL);
-		if(GetDacBufCountMs() > 200 && obj->Info.bHasVideo )//音频数据量太大停止对 audio解码 
+		if(GetDacBufCountMs() > 200 && obj->Info.bHasVideo )
 			sTimerSleep(40, NULL);
-		
 
 		// 输出音频数据到DA
 		pData = pcm;
@@ -653,7 +693,6 @@ static void JzThreadPlayFile(DWORD p)
 			}
 			else
 			{
-				
 				if( DacWrite(obj->hDac, pData, wsize) == 0 )
 				{	//出错，返回值为0
 					kdebug(mod_audio, PRINT_ERROR, "dac write is 0 \n");
@@ -661,7 +700,6 @@ static void JzThreadPlayFile(DWORD p)
 					break;
 				}
 			}
-			
 
 			// 提高当前时间精度
 			if( wsize == max_wsize )
@@ -679,7 +717,6 @@ static void JzThreadPlayFile(DWORD p)
 			player_status = MediaLibGetStatus(obj);
 			if(video.hMutex)
 				kMutexRelease(video.hMutex);
-			
 
  			// 等待退出暂停状态
 			while( MEDIALIB_PAUSE == player_status && !obj->bClose && !obj->bTerminate)
@@ -697,15 +734,15 @@ static void JzThreadPlayFile(DWORD p)
 			// 检查是否退出
 			if(obj->bTerminate)
 			{
-				if(fade == 0 && wlen == 0)
-				{
-					wlen = MediaLibGetPcm(obj,(BYTE*)pcm,block_num);
-					pData = pcm;
-					if(wlen < 0)
-					{
-						wlen = 0;
-					}
-				}
+// 				if(fade == 0 && wlen == 0)
+// 				{
+// 					wlen = MediaLibGetPcm(obj,(BYTE*)pcm,block_num);
+// 					pData = pcm;
+// 					if(wlen < 0)
+// 					{
+// 						wlen = 0;
+// 					}
+// 				}
 				kdebug(mod_audio, PRINT_INFO, "fade len:%d\n", wlen);
 				fade = 1;
 			}
@@ -802,7 +839,19 @@ ThreadEnd:
 	if(!obj_del)
 		obj->bTerminate++;
 
+	{
+		DWORD blks,alcsz;
+#if defined(STC_EXP)
+		sKmInfo(&blks, &alcsz);
+#else
+		KmInfo(&blks,&alcsz);
+#endif
+		kdebug(mod_audio, PRINT_INFO, "mplayer end memory: %x-%x\n",blks,alcsz);
+	}
 	kdebug(mod_audio, PRINT_INFO, "medialib close finish\n");
+#ifdef MPLAYER_PRINTF_ENABEL
+	syslog_set_global_level(PRINT_NOTICE);
+#endif
 #if defined(STC_EXP)
 	sThreadTerminate(sThreadSelf());
 #else
@@ -1079,7 +1128,7 @@ int JzThreadOpen(PAK_OBJECT obj)
 	obj->bClose = 0;
 	stack_size  = 0x8000;
 	if( obj->Task.ExterdType )
-		stack_size *= 8*4;
+		stack_size *= 8;
 	obj->bReady = &thread_ready;
 	
 	// 启动线程
@@ -1127,7 +1176,7 @@ void JzThreadClose(PAK_OBJECT obj, int code)
 
 // 	if( GetDacChannel() == 1 )
 // 	{
-// 		kprintf("JzThreadClose close\n");
+// 		kdebug(mod_audio, PRINT_INFO, "JzThreadClose close\n");
 // 		SetMoseCe(0);				//关闭声音，防止出现BOBO音
 // 	}
 	while(obj->bTerminate == code)

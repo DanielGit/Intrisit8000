@@ -170,7 +170,10 @@ static int JzSrvDataFileInit(PAK_VFILE vfile, PMEDIA_TASK task)
 	{
 		vfile->File = kfopen(task->FileName, "wb");
 		if(vfile->File == NULL)
+		{
+			kprintf("record %s create error\n",task->FileName);
 			return -1;
+		}
 		
 		vfile->PlayLength = 0x7fffffff;	
 		vfile->PlayOffset = 0;
@@ -337,13 +340,17 @@ static HANDLE JzSrvCreate(void *media)
 	task = (PMEDIA_TASK)media;
 	obj = kmalloc(sizeof(AK_OBJECT));
 	if(obj == NULL)
+	{
+		kprintf("JzSrvCreate : obj malloc error\n");
 		return NULL;
+	}
 	kmemset(obj, 0x00, sizeof(AK_OBJECT));
 	
 	// 初始化任务结构体
 	JZ_LOCK();	
 	if(JzSrvTaskInit(&obj->Task, task) < 0)
 	{
+		kprintf("JzSrvCreate : task init error\n");
 		kfree(obj);
 		JZ_UNLOCK();
 		return NULL;
@@ -352,6 +359,7 @@ static HANDLE JzSrvCreate(void *media)
 	// 初始消息结构体
 	if(JzSrvCtrlInit(&obj->Ctrl) < 0)
 	{
+		kprintf("JzSrvCreate : obj ctrl init error\n");
 		kfree(obj);
 		JZ_UNLOCK();
 		return NULL;
@@ -360,6 +368,7 @@ static HANDLE JzSrvCreate(void *media)
 	// 初始化数据文件结构体
 	if(JzSrvDataFileInit(&obj->File, task) < 0)
 	{
+		kprintf("JzSrvCreate : obj file init error\n");
 		JzSrvCtrlDeinit(&obj->Ctrl);
 		kfree(obj);
 		JZ_UNLOCK();
@@ -717,7 +726,7 @@ int JzSrvInfo(void *media, void *info, int type)
 	
 	// 启动线程
 	ret = JzThreadOpen(obj);
-
+	
 	// 返回参数
 	if(info && (ret >= 0))
 	{	

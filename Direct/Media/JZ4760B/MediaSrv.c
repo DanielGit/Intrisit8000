@@ -260,6 +260,7 @@ static PMEDIA_OBJECT MediaSrvObjCreate(void *media, char *name, int type)
 	if(MediaSrvGetCallback(type, &obj->Cb) < 0)
 	{
 		kdebug(mod_media, PRINT_ERROR, "MediaSrvGetCallback error\n");
+		kprintf("MediaSrvGetCallback error\n");
 		kfree(obj);
 		return NULL;
 	}
@@ -267,6 +268,7 @@ static PMEDIA_OBJECT MediaSrvObjCreate(void *media, char *name, int type)
 	if(((PMEDIA_TASK)media)->ExterdType == 1 && JzSrvUseMplayer() < 0)
 	{
 		kdebug(mod_media, PRINT_ERROR, "MediaSrvGetCallback error: mplayer already exist\n");
+		kprintf("MediaSrvGetCallback error: mplayer already exist\n");
 		kfree(obj);
 		return NULL;
 	}
@@ -275,6 +277,7 @@ static PMEDIA_OBJECT MediaSrvObjCreate(void *media, char *name, int type)
 	obj->Media = obj->Cb.MediaCreate(media);
 	if(obj->Media == NULL)
 	{
+		kprintf("MediaSrvObjCreate: obj create error\n");
 		kfree(obj);
 		return NULL;
 	}
@@ -347,6 +350,7 @@ HANDLE MediaSrvCreate(void *media, char *name, int type, int preempt)
 			obj = MediaSrvObjCreate(media, name, type);
 			if(obj == NULL)
 			{
+				kprintf("MediaSrvCreate: obj create error\n");
 				kMutexRelease(hMediaMutex);
 				return NULL;
 			}
@@ -354,6 +358,7 @@ HANDLE MediaSrvCreate(void *media, char *name, int type, int preempt)
 			// 启动新的播放任务
 			if(obj->Cb.MediaOpen(obj->Media) < 0)
 			{
+				kprintf("MediaSrvCreate: obj open error\n");
 				if(obj->MediaInfo)
 					kfree(obj->MediaInfo);
 				kfree(obj);
@@ -370,6 +375,7 @@ HANDLE MediaSrvCreate(void *media, char *name, int type, int preempt)
 			obj = MediaSrvObjCreate(media, name, type);
 			if(obj == NULL)
 			{
+				kprintf("MediaSrvCreate: obj create error1\n");
 				kMutexRelease(hMediaMutex);
 				return NULL;
 			}
@@ -384,6 +390,7 @@ HANDLE MediaSrvCreate(void *media, char *name, int type, int preempt)
 		obj = MediaSrvObjCreate(media, name, type);
 		if(obj == NULL)
 		{
+			kprintf("MediaSrvCreate: obj create error2\n");
 			kMutexRelease(hMediaMutex);
 			return NULL;
 		}
@@ -391,6 +398,7 @@ HANDLE MediaSrvCreate(void *media, char *name, int type, int preempt)
 		// 启动新的录放任务
 		if(obj->Cb.MediaOpen(obj->Media) < 0)
 		{
+			kprintf("MediaSrvCreate: obj create error3\n");
 			if(obj->MediaInfo)
 				kfree(obj->MediaInfo);
 			kfree(obj);
@@ -405,7 +413,7 @@ HANDLE MediaSrvCreate(void *media, char *name, int type, int preempt)
 	kMutexRelease(hMediaMutex);
 	{
 		HANDLE hret = HandleSet(obj, MEDIA_MAGIC, sMediaSrvDestroy);
-		kdebug(mod_media, PRINT_INFO, "OPEN: 0x%x\n", hret);
+		kprintf("OPEN: 0x%x\n", hret);
 		return hret;
 	}
 }
