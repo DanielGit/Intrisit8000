@@ -311,7 +311,7 @@ static int softsleep=0;
        double force_fps=0;
 static int force_srate=0;
 static int audio_output_format=-1; // AF_FORMAT_UNKNOWN
-       int frame_dropping=1; // option  0=no drop  1= drop vo  2= drop decode
+       int frame_dropping=2; // option  0=no drop  1= drop vo  2= drop decode
 static int play_n_frames=-1;
 static int play_n_frames_mf=-1;
 
@@ -1938,13 +1938,13 @@ static int check_framedrop(double frame_time) {
 	// check for frame-drop:
 	current_module = "check_framedrop";
 	if (mpctx->sh_audio && !mpctx->d_audio->eof) {
-	    static int dropped_frames;
+		static int dropped_frames;
 	    float delay = playback_speed*mpctx->audio_out->get_delay();
 	    float d = delay-mpctx->delay;
 	    ++total_frame_cnt;
 	    // we should avoid dropping too many frames in sequence unless we
-	    // are too late. and we allow 100ms A-V delay here:
-	    if (d < -dropped_frames*frame_time-0.100 &&
+	    // are too late. and we allow 500ms A-V delay here:
+	    if (d < -dropped_frames*frame_time-0.500 &&
 				mpctx->osd_function != OSD_PAUSE) {
 		++drop_frame_cnt;
 		++dropped_frames;
@@ -2327,6 +2327,8 @@ static int fill_audio_out_buffers(void)
 	}
 	if (!format_change && res < 0) // EOF or error
 	    if (mpctx->d_audio->eof) {
+		mpctx->audio_out->play(sh_audio->a_out_buffer, 0, playflags);
+		mpctx->eof = 1;
 		audio_eof = 1;
 		if (sh_audio->a_out_buffer_len == 0)
 		    return 0;
@@ -2374,7 +2376,6 @@ static int sleep_until_update(float *time_frame, float *aq_sleep_time)
 {
     int frame_time_remaining = 0;
     current_module="calc_sleep_time";
-#if 1
 #ifdef CONFIG_NETWORKING
     if (udp_slave) {
         int udp_master_exited = udp_slave_sync(mpctx);
@@ -2391,7 +2392,7 @@ static int sleep_until_update(float *time_frame, float *aq_sleep_time)
     if (mpctx->sh_audio && !mpctx->d_audio->eof) {
 	float delay = mpctx->audio_out->get_delay();
 	mp_dbg(MSGT_AVSYNC, MSGL_DBG2, "delay=%f\n", delay);
-
+	
 	if (autosync) {
 	    /*
 	     * Adjust this raw delay value by calculating the expected
@@ -2406,7 +2407,7 @@ static int sleep_until_update(float *time_frame, float *aq_sleep_time)
 	    float difference = delay - predicted;
 	    delay = predicted + difference / (float)autosync;
 	}
-
+	
 	*time_frame = delay - mpctx->delay / playback_speed;
 
 	// delay = amount of audio buffered in soundcard/driver
@@ -2427,10 +2428,7 @@ static int sleep_until_update(float *time_frame, float *aq_sleep_time)
     }
 
     *aq_sleep_time += *time_frame;
-
-
     //============================== SLEEP: ===================================
-
     // flag 256 means: libvo driver does its timing (dvb card)
     if (*time_frame > 0.001 && !(vo_flags&256))
 	*time_frame = timing_sleep(*time_frame);
@@ -2442,7 +2440,6 @@ static int sleep_until_update(float *time_frame, float *aq_sleep_time)
       send_udp(udp_ip, udp_port, current_time);
     }
 #endif /* CONFIG_NETWORKING */
-#endif//xjyu,2010-9-15: close sleep
     return frame_time_remaining;
 }
 
@@ -2610,7 +2607,10 @@ static double update_video(int *blit_frame)
 	    return -1;
 	if (in_size > max_framesize)
 	    max_framesize = in_size; // stats
-//	drop_frame = check_framedrop(frame_time);
+	drop_frame = check_framedrop(frame_time);
+	sh_video->timer += frame_time;
+	if (mpctx->sh_audio)
+	    mpctx->delay -= frame_time;
 	current_module = "decode_video";
 #ifdef CONFIG_DVDNAV
 	decoded_frame = mp_dvdnav_restore_smpi(&in_size,&start,decoded_frame);
@@ -2618,8 +2618,6 @@ static double update_video(int *blit_frame)
 	if (in_size > 0 && !decoded_frame)
 #endif
 	decoded_frame = decode_video(sh_video, start, in_size, drop_frame, sh_video->pts);
-
-	sh_video->timer += frame_time;
 
 	// Time-based PTS recalculation.
 	// The key to maintaining A-V sync is to not touch PTS until the proper frame is reached
@@ -2643,8 +2641,6 @@ static double update_video(int *blit_frame)
 	    }
 	    sh_video->last_pts = sh_video->pts;
 	}
-	if (mpctx->sh_audio)
-	    mpctx->delay -= frame_time;
 	// video_read_frame can change fps (e.g. for ASF video)
 	vo_fps = sh_video->fps;
 	update_subtitles(sh_video, sh_video->pts, mpctx->d_sub, 0);
@@ -2668,9 +2664,6 @@ static double update_video(int *blit_frame)
 #else
 	*blit_frame = (decoded_frame && filter_video(sh_video, decoded_frame,
 						    sh_video->pts));
-#endif
-#ifdef __MINIOS__
-		v_video_pts = (int)(sh_video->pts * 1000.0);
 #endif
     }
     else {
@@ -2874,7 +2867,6 @@ static void edl_update(MPContext *mpctx)
     }
 }
 
-
 // style & SEEK_ABSOLUTE == 0 means seek relative to current position, == 1 means absolute
 // style & SEEK_FACTOR == 0 means amount in seconds, == 2 means fraction of file length
 // return -1 if seek failed (non-seekable stream?), 0 otherwise
@@ -2966,7 +2958,7 @@ int gui_no_filename=0;
  VAE_map();
 #endif
 
-initmplayer();
+mp_memory_init();
 
 #ifdef JZC_CRC_VER
  crc_fp = fopen("jz4760e_crc.log", "aw");
@@ -3421,17 +3413,12 @@ frame_time_remaining = sleep_until_update(&mpctx->time_frame, &aq_sleep_time);
 if (!edl_needs_reset) {
     current_module="flip_page";
     if (!frame_time_remaining && blit_frame) {
-        unsigned int t2=GetTimer();
-
-        if(vo_config_count) mpctx->video_out->flip_page();
         mpctx->num_buffered_frames--;
-
-        vout_time_usage += (GetTimer() - t2) * 0.000001;
     }
 }
 //====================== A-V TIMESTAMP CORRECTION: =========================
 
-  adjust_sync_and_print_status(frame_time_remaining, mpctx->time_frame);
+adjust_sync_and_print_status(frame_time_remaining, mpctx->time_frame);
 
 if (play_n_frames >= 0 && !frame_time_remaining && blit_frame) {
 	--play_n_frames;
@@ -3564,7 +3551,6 @@ void SetMplayerError()
 	PlayerStatus = MEDIALIB_ERR;
 }
 
-
 ////////////////////////////////////////////////////
 // 功能: 暂停播放
 // 输入: 
@@ -3639,214 +3625,12 @@ void SetMplayerSeek(int f)
 // 返回: 
 // 说明: 
 ////////////////////////////////////////////////////
+int get_video_pts()
+{
+	return v_video_pts;
+}
+
 int GetMplayerCurTime()
-{
-	return get_cur_play_time();
-}
-/* This preprocessor directive is a hack to generate a mplayer-nomain.o object
- * file for some tools to link against. */
-
-#ifdef __MINIOS__
-static void initmplayer()
-{
-	//***************************************************//
-	int mode;
-	mp_memory_init();
-
-#if 0
-    {
-        /*   init tcsm  */
-        void init_tcsm(){
-            volatile int * tcsm_buf = (volatile int *)0xF4000000;
-            int tcsm_size = 0x4000;
-            memset(tcsm_buf,0,tcsm_size);
-        }
-        void init_tcsm1(){
-            volatile int * tcsm_buf = (volatile int *)0xB32c0000;
-            int tcsm_size = 0xc000;
-            memset(tcsm_buf,0,tcsm_size);
-
-			tcsm_buf = (volatile int *)0xB32d0000;
-			tcsm_size = 0x8000;
-			memset(tcsm_buf,0,tcsm_size);
-
-        }
-#ifndef JZ4760_OPT
-        switch(os_GetProcessorID()){
-        case 4750:
-            init_tcsm();
-            break;
-        case 4755:
-            init_tcsm();
-            init_tcsm1();
-            break;
-        }
-#else
-  REG32(CPM_CLKGR_VADDR) &= ~(JZ4760_IPU_CLOCK);
-  REG32(CPM_CLKGR1_VADDR) &= ~(JZ4760_VIDEO_DECODER_CLOCK);
-
-            init_tcsm();
-            init_tcsm1();
-#endif
-        /*   end tcsm  */
-    }
-
-#ifndef USE_16M_SDRAM
-	extern void mpeg2_init_var();
-
-	mpeg2_init_var();
-#endif
-	Set3DPlay(0);
-	SetPostPlay(0,0);
-	slave_mode=0;
-	player_idle_mode=0;
-	//quiet=1;
-	mp_mode = 0;
-	ao_data.buffersize = -1;
-	enable_mouse_movements=0;
-	noconsolecontrols=1;
-    //**************************************************************************//
-	audio_sem_filemode = os_SemaphoreCreate(0);
-    // Not all functions in mplayer.c take the context as an argument yet
-	memset(&mpctx_s,0,sizeof(mpctx_s));
-	{
-		mpctx_s.osd_function = OSD_PLAY;
-		mpctx_s.begin_skip = MP_NOPTS_VALUE;
-		mpctx_s.play_tree_step = 1;
-		mpctx_s.global_sub_pos = -1;
-		mpctx_s.set_of_sub_pos = -1;
-		mpctx_s.file_format = DEMUXER_TYPE_UNKNOWN;
-		mpctx_s.loop_times = -1;
-#ifdef HAS_DVBIN_SUPPORT
-		mpctx_s.last_dvb_step = 1;
-#endif
-	}
-
-	mpctx = &mpctx_s;
-	fixed_vo=0;
-
-//added by jyu for wmadecfix.c. This variable is used to select acceleration instruction set.
-#ifdef JZ4750_OPT
-    jz_cpu_type_id=CPU_ID_JZ4750;
-#else
-    jz_cpu_type_id=CPU_ID_JZ4740;
-#endif
-    // benchmark:
-	video_time_usage=0;
-	vout_time_usage=0;
-	audio_time_usage=0;
-	total_time_usage_start=0;
-	total_frame_cnt=0;
-	drop_frame_cnt=0; // total number of dropped frames
-	benchmark=0;
-
-    // options:
-    auto_quality=0;
-    output_quality=0;
-
-    //playback_speed=1.0;
-
-
-    list_properties = 0;
-
-    osd_level=0;
-    // if nonzero, hide current OSD contents when GetTimerMS() reaches this
-
-    term_osd = 0;
-    playing_msg = NULL;
-    // seek:
-	seek_to_sec = 0.0;
-	seek_to_byte=0;
-	step_sec=0;
-	seek_start=0;
-
-    // A/V sync:
-	autosync=0; // 30 might be a good default value.
-
-    // may be changed by GUI:  (FIXME!)
-	rel_seek_secs=0;
-	abs_seek_pos=0;
-
-    // codecs:
-	audio_codec_list=NULL; // override audio codec
-	video_codec_list=NULL; // override video codec
-	audio_fm_list=NULL;    // override audio codec family
-	video_fm_list=NULL;    // override video codec family
-
-    // demuxer:
-	demuxer_name = NULL; // override demuxer
-	audio_demuxer_name = NULL; // override audio demuxer
-	sub_demuxer_name = NULL; // override sub demuxer
-
-    // streaming:
-	audio_id=-1;
-	video_id=-1;
-	dvdsub_id=-2;
-	vobsub_id=-2;
-	audio_lang=NULL;
-	dvdsub_lang=NULL;
-	spudec_ifo=NULL;
-	filename=NULL; //"MI2-Trailer.avi";
-	forced_subs_only=0;
-	file_filter=0;
-
-    // A-V sync:
-	default_max_pts_correction=-1;//0.01f;
-	max_pts_correction=0;//default_max_pts_correction;
-	c_total=0;
-	audio_delay=0.0;//(64000.0 * 3
-    // screen info:
-    video_driver_list=NULL;
-    audio_driver_list=NULL;
-
-    // sub:
-    font_name=NULL;
-    sub_font_name=NULL;
-    font_factor=0.75;
-    sub_name=NULL;
-    sub_delay=0;
-    sub_fps=0;
-    sub_auto = 0;
-	vobsub_name=NULL;
-    /*DSP!!char *dsp=NULL;*/
-    subcc_enabled=0;
-    suboverlap_enabled = 1;
-    current_module=NULL; // for debugging
-	.0)/2.0/22050.0/2.0;
-	ignore_start=0;
-
-
-
-	//softsleep=0;
-
-	force_fps=0;
-	force_srate=0;
-	audio_output_format=-1; // AF_FORMAT_UNKNOWN
-	frame_dropping=1; // option  0=no drop  1= drop vo  2= drop decode
-	play_n_frames=-1;
-	play_n_frames_mf=-1;
-
-    // screen info:
-    video_driver_list=NULL;
-    audio_driver_list=NULL;
-
-    // sub:
-    font_name=NULL;
-    sub_font_name=NULL;
-    font_factor=0.75;
-    sub_name=NULL;
-    sub_delay=0;
-    sub_fps=0;
-    sub_auto = 0;
-	vobsub_name=NULL;
-    /*DSP!!char *dsp=NULL;*/
-    subcc_enabled=0;
-    suboverlap_enabled = 1;
-    current_module=NULL; // for debugging
-#endif
-}
-
-int get_cur_play_time()
 {
 	if(0)
 	{
@@ -3860,22 +3644,6 @@ int get_cur_play_time()
 	}
 }
 
-int get_video_pts()
-{
-	return v_video_pts;
-}
-
-int  GetTotalTime()
-{
-        if(mpctx == NULL)
-        return -1;
-
-        if(mpctx->eof != 0)
-        return -1;
-        //printf("-----%d\n",(unsigned int)demuxer_get_time_length(mpctx->demuxer));
-        return (int)(demuxer_get_time_length(mpctx->demuxer)*1000.0);
-}
-
 long labs(long x)
 {
   if (x < 0)
@@ -3885,27 +3653,3 @@ long labs(long x)
   return x;
 }
 
-#undef abs
-int abs(int x)
-{
-  if (x < 0)
-    {
-      x = -x;
-    }
-  return x;
-}
-
-
-codecs_t * mplayer_get_code_info(int avcodec){
-    if(!mpctx) return NULL;
-    if(mpctx->eof) return 0;
-    if(avcodec == 0){
-        if(mpctx->sh_audio)
-            return mpctx->sh_audio->codec;
-    }else
-        if(mpctx->sh_video)
-            return mpctx->sh_video->codec;
-    return NULL;
-}
-
-#endif //#ifdef __MINIOS__
