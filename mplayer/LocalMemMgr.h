@@ -84,7 +84,7 @@ static inline int currentNodeAlloc(unsigned int heap,unsigned int i,unsigned int
 	    free_size = local_size(i);
 	}
 
- 	if ((free_size >= nbytes) && Addr_overlay_4M_boudary((i + SIZE_HEADER), nbytes))
+ 	if (nbytes <= 0x380000 && (free_size >= nbytes) && Addr_overlay_4M_boudary((i + SIZE_HEADER), nbytes))
  	{
         int dist4M = 0x400000 - ((unsigned int)(i + SIZE_HEADER) & 0x3fffff);
         // 如果当前块可以拆分

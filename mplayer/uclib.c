@@ -88,7 +88,7 @@ void *uc_malloc(unsigned int size)
 	
 	if (!ret)
 	{
-		printf("mplayer %s error size: %d\n", __FUNCTION__, size);
+		printf("++++++ mplayer %s error size: %d ++++++\n", __FUNCTION__, size);
 		mp_memory_empty = 1;	
 	 }
 	return ret;
