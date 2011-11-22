@@ -25,7 +25,7 @@
 
 //#define	MPLAYER_PRINTF_ENABEL
 #define RECORD_FADE		800
-#define MAX_PCM_GET_LEN 4* 8192
+#define MAX_PCM_GET_LEN 8* 8192
 
 #define RECODE_SKIP_LEN	400		//录音结束以后，清除最后的录音数据，防止录入按间声音
 

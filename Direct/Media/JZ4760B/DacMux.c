@@ -1546,6 +1546,7 @@ int GetDacSpaceCount()
 	PDAC_DEVICE dac;
 	PRESAMPLE presample;
 
+	kMutexWait(hDacMutex);
 	len = 0;
 	head = &DacList;
 	if( head )
@@ -1563,6 +1564,7 @@ int GetDacSpaceCount()
 		}
 	}
 
+	kMutexRelease(hDacMutex);
 	return len;
 }
 
