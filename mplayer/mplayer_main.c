@@ -150,6 +150,8 @@
 #include "stream/stream_dvd.h"
 #endif
 
+#include "libjzcommon/jzasm.h"
+
 int xpos=-1;
 int ypos=-1;
 int tv_mode=-1;
@@ -2959,6 +2961,12 @@ int gui_no_filename=0;
 #endif
 
 mp_memory_init();
+
+  {
+	  unsigned int eaddr;
+	  eaddr = i_mfc0_2(30, 0);
+    kprintf ("\n\n+++++++ Error PC = 0x%08x +++++++\n\n", eaddr);
+  }
 
 #ifdef JZC_CRC_VER
  crc_fp = fopen("jz4760e_crc.log", "aw");
