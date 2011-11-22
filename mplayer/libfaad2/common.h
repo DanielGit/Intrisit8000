@@ -69,7 +69,7 @@ extern "C" {
 /* Use if target platform has address generators with autoincrement */
 //#define PREFER_POINTERS
 
-#if defined(_WIN32_WCE) || defined(__arm__) || defined(__avr32__)
+#if defined(_WIN32_WCE) || defined(__arm__) || defined(__avr32__) || defined(ARCH_MIPS)
 #define FIXED_POINT
 #endif
 
@@ -159,8 +159,11 @@ extern "C" {
 /* END COMPILE TIME DEFINITIONS */
 
 #if defined(_WIN32) && !defined(__MINGW32__)
-
+#ifdef __MINIOS__
+#include "mplaylib.h"
+#else
 #include <stdlib.h>
+#endif
 
 #if 0
 typedef unsigned __int64 uint64_t;
@@ -178,6 +181,10 @@ typedef __int8  int8_t;
 typedef float float32_t;
 
 
+#else
+
+#ifdef __MINIOS__
+#include "mplaylib.h"
 #else
 
 #include <stdio.h>
@@ -224,11 +231,15 @@ typedef char int8_t;
 #if HAVE_UNISTD_H
 # include <unistd.h>
 #endif
+#endif//__MINIOS__
 
 #ifndef HAVE_FLOAT32_T
 typedef float float32_t;
 #endif
 
+#ifdef __MINIOS__
+#include "mplaylib.h"
+#else
 #if STDC_HEADERS
 # include <string.h>
 #else
@@ -243,6 +254,7 @@ char *strchr(), *strrchr();
 # endif
 #endif
 
+#endif
 #endif
 
 #if HAVE_BIGENDIAN

@@ -25,9 +25,13 @@
 ** $Id: drm_dec.c 29306 2009-05-13 15:22:13Z bircoph $
 **/
 
+#ifdef __MINIOS__
+#include "mplaylib.h"
+#else
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#endif
 #include <math.h>
 #include "common.h"
 

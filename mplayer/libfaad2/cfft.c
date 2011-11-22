@@ -37,10 +37,56 @@
 #include "common.h"
 #include "structs.h"
 
+#ifdef __MINIOS__
+#include "mplaylib.h"
+#else
 #include <stdlib.h>
+#endif
 
 #include "cfft.h"
 #include "cfft_tab.h"
+
+#define BUTTERFLY_2(c1, c2, t1, t2) \
+  do{\
+                S32LDD(xr1, t1,0);\
+                S32LDD(xr2, t1,4);\
+                S32LDD(xr3, t2,0);\
+                S32LDD(xr4, t2,4);\
+                D32ADD_AS(xr1,xr1,xr3,xr3);\
+                D32ADD_AS(xr2, xr2, xr4, xr4);\
+                RE(c1) = S32M2I(xr1);\
+                IM(c1) = S32M2I(xr2);\
+                RE(c2) = S32M2I(xr3);\
+                IM(c2) = S32M2I(xr4);\
+   }while(0)
+#define BUTTERFLY_4(c1, c2, c3, c4, t1, t2, t3, t4) \
+  do{\
+                S32LDD(xr1, t1,0);\
+                S32LDD(xr2, t1,4);\
+                S32LDD(xr3, t2,0);\
+                S32LDD(xr4, t2,4);\
+                S32LDD(xr5, t3,0);\
+                S32LDD(xr6, t3,4);\
+                S32LDD(xr7, t4,0);\
+                S32LDD(xr8, t4,4);\
+                D32ADD_AS(xr1, xr1, xr5, xr5);\
+                D32ADD_AS(xr2, xr2, xr6, xr6);\
+                D32ADD_AS(xr3, xr3, xr7, xr7);\
+                D32ADD_AS(xr8, xr8, xr4, xr4);\
+                D32ADD_AS(xr5, xr5, xr4, xr4);\
+                D32ADD_AS(xr6, xr6, xr7, xr7);\
+                D32ADD_AS(xr1, xr1, xr3, xr3);\
+                D32ADD_AS(xr2, xr2, xr8, xr8);\
+                RE(c2) = S32M2I(xr5);\
+                RE(c4) = S32M2I(xr4);\
+                IM(c2) = S32M2I(xr6);\
+                IM(c4) = S32M2I(xr7);\
+                RE(c1) = S32M2I(xr1);\
+                RE(c3) = S32M2I(xr3);\
+                IM(c1) = S32M2I(xr2);\
+                IM(c3) = S32M2I(xr8);\
+  }while(0)
+
 
 
 /* static function declarations */
@@ -65,7 +111,39 @@ static void cffti1(uint16_t n, complex_t *wa, uint16_t *ifac);
 /*----------------------------------------------------------------------
    passf2, passf3, passf4, passf5. Complex FFT passes fwd and bwd.
   ----------------------------------------------------------------------*/
+#if defined(JZ4750_OPT)
+static void passf2pos(const uint16_t ido, const uint16_t l1, const complex_t *cc,
+                      complex_t *ch, const complex_t *wa)
+{
+    uint16_t i, k, ah, ac;
 
+    if (ido == 1)
+    {
+        for (k = 0; k < l1; k++)
+        {
+            ah = k << 1;
+            ac = k << 2;
+
+            BUTTERFLY_2(ch[ah+i],ch[ah+l1], cc[ac], cc[ac+i+1]); 
+        }
+    } else {
+        for (k = 0; k < l1; k++)
+        {
+            ah = k*ido;
+            ac = ah << 1;
+
+            for (i = 0; i < ido; i++)
+            {
+                complex_t t2;
+
+                BUTTERFLY_2(ch[ah+i], t2, cc[ac+i], cc[ac+i+ido]); 
+               CMUL(IM(ch[ah+i+l1*ido]), RE(ch[ah+i+l1*ido]),
+                    IM(t2), RE(t2), RE(wa[i]), IM(wa[i]));
+            }
+        }
+    }
+}
+#else
 static void passf2pos(const uint16_t ido, const uint16_t l1, const complex_t *cc,
                       complex_t *ch, const complex_t *wa)
 {
@@ -110,6 +188,7 @@ static void passf2pos(const uint16_t ido, const uint16_t l1, const complex_t *cc
         }
     }
 }
+#endif
 
 static void passf2neg(const uint16_t ido, const uint16_t l1, const complex_t *cc,
                       complex_t *ch, const complex_t *wa)
@@ -293,8 +372,52 @@ static void passf3(const uint16_t ido, const uint16_t l1, const complex_t *cc,
         }
     }
 }
+#if defined(JZ4750_OPT)
+static void passf4pos(const uint16_t ido, const uint16_t l1, const complex_t *cc,
+                      complex_t *ch, const complex_t *wa1, const complex_t *wa2,
+                      const complex_t *wa3)
+{
+    uint16_t i, k, ac, ah;
+    int32_t ac1, ac2, ac3;
+    int32_t ah1, ah2, ah3, tmph;
 
+    if (ido == 1)
+    {
+        for (k = 0; k < l1; k++)
+        {
+            ac = k << 2;
+            ah = k;
 
+            BUTTERFLY_4(ch[ah], ch[ah+l1], ch[ah+ l1 + l1], ch[ah+l1+l1+l1], cc[ac],cc[ac+1],cc[ac+2],cc[ac+3]);
+        }
+    } else {
+        for (k = 0; k < l1; k++)
+        {
+            ah = k*ido;
+            ac = ah << 2;
+
+            ac1 = ac+ ido;
+            ac2 = ac1 + ido;
+            ac3 = ac2 + ido;
+            tmph = l1*ido;
+            ah1 =ah+ tmph;
+            ah2 = ah1 + tmph;
+            ah3 = ah2 + tmph;
+            for (i = 0; i < ido; i++)
+            {
+                complex_t c2, c3, c4;
+
+              BUTTERFLY_4(ch[ah+i],c2,c3,c4, cc[ac+i], cc[ac1+i], cc[ac2+i], cc[ac3+i]);
+              CMUL(IM(ch[ah1 + i]),RE(ch[ah1 + i]),IM(c2),RE(c2),RE(wa1[i]),IM(wa1[i])) ;
+              CMUL(IM(ch[ah2 + i]),RE(ch[ah2 + i]),IM(c3),RE(c3),RE(wa2[i]),IM(wa2[i])) ;
+              CMUL(IM(ch[ah3 + i]),RE(ch[ah3 + i]),IM(c4),RE(c4),RE(wa3[i]),IM(wa3[i])) ;
+
+            }
+        }
+    }
+}
+
+#else
 static void passf4pos(const uint16_t ido, const uint16_t l1, const complex_t *cc,
                       complex_t *ch, const complex_t *wa1, const complex_t *wa2,
                       const complex_t *wa3)
@@ -381,6 +504,7 @@ static void passf4pos(const uint16_t ido, const uint16_t l1, const complex_t *cc
         }
     }
 }
+#endif
 
 static void passf4neg(const uint16_t ido, const uint16_t l1, const complex_t *cc,
                       complex_t *ch, const complex_t *wa1, const complex_t *wa2,

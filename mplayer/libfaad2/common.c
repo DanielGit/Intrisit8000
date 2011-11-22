@@ -31,7 +31,7 @@
 #include "structs.h"
 
 #ifdef __MINIOS__
-#include <mplaylib.h>
+#include "mplaylib.h"
 #else
 #include <stdlib.h>
 #endif

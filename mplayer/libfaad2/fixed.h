@@ -36,6 +36,11 @@ extern "C" {
 #include <cmnintrin.h>
 #endif
 
+#if defined(JZ4750_OPT)
+#undef JZ4740_MXU_OPT
+#include "jz_mxu.h"
+#endif
+
 #define COEF_BITS 28
 #define COEF_PRECISION (1 << COEF_BITS)
 #define REAL_BITS 14 // MAXIMUM OF 14 FOR FIXED POINT SBR
@@ -225,7 +230,168 @@ static INLINE void ComplexMult(real_t *y1, real_t *y2,
     *y1 = yt1 << (FRAC_SIZE-FRAC_BITS);
     *y2 = yt2 << (FRAC_SIZE-FRAC_BITS);
 }
+#elif defined(JZ4740_MXU_OPT)
+#define INSN_CMPMULPLUS(y1, im_x, re_x, re_y, im_y)      \
+__extension__({                                  \
+  __asm__ __volatile ("mult %1, %2;              \
+                       madd %3, %4;              \
+                       mfhi $8;              \
+                       sll  $8, $8, 1;              \
+                       sw   $8, 0(%0)"            \
+                      :                         \
+              :"d"(y1), "d"(re_x), "d"(im_y), "d"(im_x), "d"(re_y)\
+              :"hi", "lo", "$8");                      \
+})
+ 
+#define INSN_CMPMULMINUS(y2, im_x, re_x, re_y, im_y)      \
+__extension__({                                  \
+  __asm__ __volatile ("mult %1, %2;              \
+                       msub %3, %4;              \
+                       mfhi $8;              \
+                       sll  $8, $8, 1;              \
+                       sw   $8, 0(%0)"            \
+                      :                         \
+              :"d"(y2), "d"(re_x), "d"(re_y), "d"(im_x), "d"(im_y)\
+              :"hi", "lo", "$8");                      \
+})
 
+#define MUL_F(A,B)          \
+__extension__({                                    \
+  int hi, lo;                                      \
+  __asm__ __volatile("mult %2, %3"                 \
+              :"=h"(hi), "=l"(lo)                  \
+              :"d"(A), "d"(B));                    \
+  hi<<1;                                           \
+})
+  /* multiply with real shift */
+  #define MUL_R(A,B) (real_t)(((int64_t)(A)*(int64_t)(B)+(1 << (REAL_BITS-1))) >> REAL_BITS)
+  /* multiply with coef shift */
+  #define MUL_C(A,B) (real_t)(((int64_t)(A)*(int64_t)(B)+(1 << (COEF_BITS-1))) >> COEF_BITS)
+  /* multiply with fractional shift */
+  #define _MulHigh(A,B) (real_t)(((int64_t)(A)*(int64_t)(B)+(1 << (FRAC_SIZE-1))) >> FRAC_SIZE)
+//  #define MUL_F(A,B) (real_t)(((int64_t)(A)*(int64_t)(B)+(1 << (FRAC_BITS-1))) >> FRAC_BITS)
+  #define MUL_Q2(A,B) (real_t)(((int64_t)(A)*(int64_t)(B)+(1 << (Q2_BITS-1))) >> Q2_BITS)
+  #define MUL_SHIFT6(A,B) (real_t)(((int64_t)(A)*(int64_t)(B)+(1 << (6-1))) >> 6)
+  #define MUL_SHIFT23(A,B) (real_t)(((int64_t)(A)*(int64_t)(B)+(1 << (23-1))) >> 23)
+
+/* Complex multiplication */
+#if 1
+static INLINE void ComplexMult(real_t *y1, real_t *y2,
+    real_t x1, real_t x2, real_t c1, real_t c2)
+{
+    INSN_CMPMULPLUS(y1, x1, x2, c1, c2); 
+    INSN_CMPMULMINUS(y2, x1, x2, c1, c2); 
+}
+#else 
+
+static INLINE void ComplexMult(real_t *y1, real_t *y2,
+    real_t x1, real_t x2, real_t c1, real_t c2)
+{   __asm__ __volatile ("mult %2, %3\n\t"                    
+                        "madd %4, %5\n\t"                    
+                        "mfhi $8\n\t"                        
+                        "sll  $8, $8, 1\n\t"                
+                        "sw   $8, 0(%0)\n\t"                 
+                        "mult %2, %5\n\t"                    
+                        "msub %3, %4\n\t"                   
+                        "mfhi $8\n\t"                        
+                        "sll  $8, $8, 1\n\t"                 
+                        "sw   $8, 0(%1)\n\t"                 
+                        : "=d"(y1), "=d"(y2)                              
+             : "d"(x1), "d"(c2), "d"(x2), "d"(c1)
+             :"hi", "lo", "$8");                        
+}
+#endif
+
+#elif defined(JZ4750_OPT)
+
+#define INSN_CMPMULPLUS(y1, im_x, re_x, re_y, im_y)      \
+__extension__({                                  \
+  __asm__ __volatile ("mult %1, %2;              \
+                       madd %3, %4;              \
+                       mfhi $8;              \
+                       sll  $8, $8, 1;              \
+                       sw   $8, 0(%0)"            \
+                      :                         \
+              :"d"(y1), "d"(re_x), "d"(im_y), "d"(im_x), "d"(re_y)\
+              :"hi", "lo", "$8");                      \
+})
+ 
+#define INSN_CMPMULMINUS(y2, im_x, re_x, re_y, im_y)      \
+__extension__({                                  \
+  __asm__ __volatile ("mult %1, %2;              \
+                       msub %3, %4;              \
+                       mfhi $8;              \
+                       sll  $8, $8, 1;              \
+                       sw   $8, 0(%0)"            \
+                      :                         \
+              :"d"(y2), "d"(re_x), "d"(re_y), "d"(im_x), "d"(im_y)\
+              :"hi", "lo", "$8");                      \
+})
+#if 1
+#define MUL_F(A,B)          \
+  ({S32MUL(xr1, xr2, A, B);   \
+  D32SLL(xr1, xr1, xr0, xr0, 1); \
+  S32M2I(xr1);})
+#define MUL_R(A,B)    \
+  ({S32MUL(xr1, xr2, A, B);    \
+    D32SLL(xr1, xr1, xr0,xr0,15);\
+    D32SLL(xr1, xr1, xr0,xr0,3);\
+    D32SLR(xr2, xr2, xr0,xr0,14);\
+    S32OR(xr1, xr1,xr2);        \
+    S32M2I(xr1);})
+#define MUL_C(A,B)    \
+  ({S32MUL(xr1, xr2, A, B);    \
+    D32SLL(xr1, xr1, xr0,xr0,4);\
+    D32SLR(xr2, xr2, xr0,xr0,15);\
+    D32SLR(xr2, xr2, xr0,xr0,13);\
+    S32OR(xr1, xr1,xr2);        \
+    S32M2I(xr1);})
+#define _MulHigh(A,B) MUL_F(A,B)
+#define MUL_SHIFT6(A,B)    \
+  ({S32MUL(xr1, xr2, A, B);    \
+    D32SLL(xr1, xr1, xr0,xr0,6);\
+    D32SLR(xr2, xr2, xr0,xr0,13);\
+    D32SLR(xr2, xr2, xr0,xr0,13);\
+    S32OR(xr1, xr1,xr2);        \
+    S32M2I(xr1);})
+#define MUL_SHIFT23(A,B)    \
+  ({S32MUL(xr1, xr2, A, B);    \
+    D32SLL(xr1, xr1, xr0,xr0,3);\
+    D32SLL(xr2, xr2, xr0,xr0,10);\
+    D32SLL(xr2, xr2, xr0,xr0,13);\
+    S32OR(xr1, xr1,xr2);        \
+    S32M2I(xr1);})
+#else
+  #define MUL_F(A,B) (real_t)(((int64_t)(A)*(int64_t)(B)+(1 << (FRAC_BITS-1))) >> FRAC_BITS)
+  /* multiply with real shift */
+  #define MUL_R(A,B) (real_t)(((int64_t)(A)*(int64_t)(B)+(1 << (REAL_BITS-1))) >> REAL_BITS)
+  /* multiply with coef shift */
+  #define MUL_C(A,B) (real_t)(((int64_t)(A)*(int64_t)(B)+(1 << (COEF_BITS-1))) >> COEF_BITS)
+  #define _MulHigh(A,B) (real_t)(((int64_t)(A)*(int64_t)(B)+(1 << (FRAC_SIZE-1))) >> FRAC_SIZE)
+  #define MUL_SHIFT6(A,B) (real_t)(((int64_t)(A)*(int64_t)(B)+(1 << (6-1))) >> 6)
+  /* multiply with fractional shift */
+  #define MUL_SHIFT23(A,B) (real_t)(((int64_t)(A)*(int64_t)(B)+(1 << (23-1))) >> 23)
+#endif
+
+#define CMUL(imagv, realv, x1, x2, w1, w2) \
+ do{\
+                S32MUL(xr10,xr11, x1, w1); \
+                S32MADD(xr10,xr11, x2, w2);\
+                S32MUL(xr12,xr13, x2, w1);\
+                S32MSUB(xr12,xr13, x1, w2);\
+                D32SLL(xr10,xr10,xr12,xr12,1);\
+                imagv = S32M2I(xr10);\
+                realv = S32M2I(xr12);\
+   }while(0)
+
+
+/* Complex multiplication */
+static INLINE void ComplexMult(real_t *y1, real_t *y2,
+    real_t x1, real_t x2, real_t c1, real_t c2)
+{
+    INSN_CMPMULPLUS(y1, x1, x2, c1, c2); 
+    INSN_CMPMULMINUS(y2, x1, x2, c1, c2); 
+}
 #else
 
   /* multiply with real shift */

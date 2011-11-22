@@ -66,8 +66,8 @@ CFLAGS  += -DNOAH_OS
 ASFLAGS  = $(CFLAGS)
 CXXFLAGS =  -Wstrict-prototypes -Wmissing-prototypes -Wundef -Wdisabled-optimization -Wno-pointer-sign -Wdeclaration-after-statement -std=gnu99 -Wall -Wno-switch -Wno-parentheses -Wpointer-arith -Wredundant-decls -O4   -pipe -ffast-math -fomit-frame-pointer -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_LIMIT_MACROS -Ilibdvdread4 -I. -I./libmad/libmad-0.15.1b/ -imacros libjzcommon/com_config.h -DPIC -D_REENTRANT  
 endif
-CC_DEPFLAGS = -MMD -MF $(@:.mid=.d) -MT $(@:.mid=.o)
-AS_DEPFLAGS = -MMD -MF $(@:.mid=.d) -MT $(@:.mid=.o)
+#CC_DEPFLAGS = -MMD -MF $(@:.mid=.d) -MT $(@:.mid=.o)
+#AS_DEPFLAGS = -MMD -MF $(@:.mid=.d) -MT $(@:.mid=.o)
 
 CFLAGS_DHAHELPER         = 
 CFLAGS_FAAD_FIXED        = 
@@ -152,8 +152,8 @@ DXR2 = no
 DXR3 = no
 ESD = no
 FAAC= no
-FAAD = no
-FAAD_INTERNAL = no
+FAAD = yes
+FAAD_INTERNAL = yes
 FASTMEMCPY = no
 FBDEV = yes
 FREETYPE = no

@@ -35,7 +35,7 @@
 #include "pns.h"
 
 
-static void flt_round(float32_t *pf)
+static void flt_round(real_t *pf)
 {
     int32_t flg;
     uint32_t tmp, tmp1, tmp2;
@@ -52,13 +52,13 @@ static void flt_round(float32_t *pf)
         tmp2 = tmp;                             /* add 1 lsb and elided one */
         tmp &= (uint32_t)0xff800000;       /* extract exponent and sign */
 
-        *pf = *(float32_t*)&tmp1 + *(float32_t*)&tmp2 - *(float32_t*)&tmp;
+        *pf = *(real_t *)&tmp1 + *(real_t *)&tmp2 - *(real_t *)&tmp;
     } else {
-        *pf = *(float32_t*)&tmp;
+        *pf = *(real_t *)&tmp;
     }
 }
 
-static int16_t quant_pred(float32_t x)
+static int16_t quant_pred(real_t x)
 {
     int16_t q;
     uint32_t *tmp = (uint32_t*)&x;
@@ -67,7 +67,7 @@ static int16_t quant_pred(float32_t x)
 
     return q;
 }
-
+#if 0
 static float32_t inv_quant_pred(int16_t q)
 {
     float32_t x;
@@ -77,6 +77,16 @@ static float32_t inv_quant_pred(int16_t q)
     return x;
 }
 
+#else
+static real_t inv_quant_pred(int16_t q)
+{
+    real_t x;
+    real_t *tmp = (real_t *)&x;
+    *tmp = ((real_t )q)<<16;
+
+    return x;
+}
+#endif
 static void ic_predict(pred_state *state, real_t input, real_t *output, uint8_t pred)
 {
     uint16_t tmp;
@@ -97,7 +107,7 @@ static void ic_predict(pred_state *state, real_t input, real_t *output, uint8_t 
     VAR[1] = inv_quant_pred(state->VAR[1]);
 
 
-#if 1
+#ifdef FIXED_POINT
     tmp = state->VAR[0];
     j = (tmp >> 7);
     i = tmp & 0x7f;
@@ -106,7 +116,7 @@ static void ic_predict(pred_state *state, real_t input, real_t *output, uint8_t 
         j -= 128;
         k1 = COR[0] * exp_table[j] * mnt_table[i];
     } else {
-        k1 = REAL_CONST(0);
+        k1 = 0;
     }
 #else
 
@@ -128,7 +138,7 @@ static void ic_predict(pred_state *state, real_t input, real_t *output, uint8_t 
 
     if (pred)
     {
-#if 1
+#ifdef FIXED_POINT
         tmp = state->VAR[1];
         j = (tmp >> 7);
         i = tmp & 0x7f;
@@ -137,7 +147,7 @@ static void ic_predict(pred_state *state, real_t input, real_t *output, uint8_t 
             j -= 128;
             k2 = COR[1] * exp_table[j] * mnt_table[i];
         } else {
-            k2 = REAL_CONST(0);
+            k2 = 0;
         }
 #else
 
@@ -165,6 +175,16 @@ static void ic_predict(pred_state *state, real_t input, real_t *output, uint8_t 
     e1 = e0 - k1*r[0];
     dr1 = k1*e0;
 
+#ifdef FIXED_POINT
+
+    VAR[0] = ALPHA*VAR[0] + (r[0]*r[0] + e0*e0)>>1;
+    COR[0] = ALPHA*COR[0] + r[0]*e0;
+    VAR[1] = ALPHA*VAR[1] + (r[1]*r[1] + e1*e1)>>1;
+    COR[1] = ALPHA*COR[1] + r[1]*e1;
+
+    r[1] = A * (r[0]-dr1);
+    r[0] = A * e0;
+#else
     VAR[0] = ALPHA*VAR[0] + 0.5f * (r[0]*r[0] + e0*e0);
     COR[0] = ALPHA*COR[0] + r[0]*e0;
     VAR[1] = ALPHA*VAR[1] + 0.5f * (r[1]*r[1] + e1*e1);
@@ -172,7 +192,7 @@ static void ic_predict(pred_state *state, real_t input, real_t *output, uint8_t 
 
     r[1] = A * (r[0]-dr1);
     r[0] = A * e0;
-
+#endif
     state->r[0] = quant_pred(r[0]);
     state->r[1] = quant_pred(r[1]);
     state->COR[0] = quant_pred(COR[0]);

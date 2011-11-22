@@ -210,8 +210,8 @@
 
 /* codec libraries */
 #undef CONFIG_FAAC
-#undef CONFIG_FAAD
-#undef CONFIG_FAAD_INTERNAL
+#define CONFIG_FAAD 1
+#define CONFIG_FAAD_INTERNAL 1
 #undef CONFIG_LIBA52
 #undef CONFIG_LIBDCA
 #undef CONFIG_LIBDV095

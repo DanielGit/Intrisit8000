@@ -127,12 +127,6 @@ void h263_decode_init_vlc(MpegEncContext *s)
         INIT_VLC_STATIC(&mv_vlc, MV_VLC_BITS, 33,
                  &mvtab[0][1], 2, 1,
                  &mvtab[0][0], 2, 1, 538);
-
-		//ALLEN add 2011.05.19
-		memset (ff_h263_static_rl_table_store, 0, sizeof (ff_h263_static_rl_table_store));
-		memset ((void*)ff_h263_rl_inter.index_run, 0, sizeof (RLTable) - 20 );
-		memset ((void*)rl_intra_aic.index_run, 0, sizeof (RLTable) - 20);
-
         init_rl(&ff_h263_rl_inter, ff_h263_static_rl_table_store[0]);
         init_rl(&rl_intra_aic, ff_h263_static_rl_table_store[1]);
         INIT_VLC_RL(ff_h263_rl_inter, 554);

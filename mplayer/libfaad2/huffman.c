@@ -28,9 +28,13 @@
 #include "common.h"
 #include "structs.h"
 
+#ifdef __MINIOS__
+#include "mplaylib.h"
+#else
 #include <stdlib.h>
 #ifdef ANALYSIS
 #include <stdio.h>
+#endif
 #endif
 
 #include "bits.h"
