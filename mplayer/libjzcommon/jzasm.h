@@ -9,11 +9,11 @@
   ({__asm__ __volatile__("movn\t%0,%1,%2\t#i_movn":"+d"(_dst_):"d"(src0),"d"(src1)); })
 
 #define i_mtc0_2(src0,src1,src2)	\
-({ __asm__ __volatile__ ("mtc0\t%0,$%1,%2"::"r"(src0),"i"(src1),"i"(src2));})
+({ __asm__ __volatile__ (".set\tnoreorder\n\t" "mtc0\t%0,$%1,%2\n\t" ".set\treorder\n"::"r"(src0),"i"(src1),"i"(src2));})
 
 #define i_mfc0_2(src0,src1)								\
 (	{unsigned long _dst_; 								\
- 	__asm__ __volatile__ ("mfc0\t%0,$%1,%2":"=r"(_dst_):"i"(src0),"i"(src1));	\
+ 	__asm__ __volatile__ (".set\tnoreorder\n\t" "mfc0\t%0,$%1,%2\n\t" ".set\treorder\n":"=r"(_dst_):"i"(src0),"i"(src1));	\
 	_dst_;})	
 
 #define i_lw(src0,src1)  								\
