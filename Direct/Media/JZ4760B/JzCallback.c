@@ -39,6 +39,7 @@ extern void ClockDelay(DWORD usec);
 extern BYTE* LcdcVideoOsdBuf(void);
 extern void SetMplayerEnd(void);
 extern int GetDacBufCount();
+extern int GetDacSpaceCount();
 
 extern void __icache_invalidate_all(void);
 extern void __dcache_writeback_all(void);
@@ -533,7 +534,8 @@ static void AkCbOpenVideoOsd(int w, int h)
 ////////////////////////////////////////////////////
 static int os_audio_get_space()
 {
-	return MplayerAudioSpace;
+	return GetDacSpaceCount();
+//	return MplayerAudioSpace;
 }
 
 ////////////////////////////////////////////////////
