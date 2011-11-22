@@ -719,13 +719,8 @@ HANDLE DacOpen(void)
 		// 但是当打开两路声音, 而且其中一路在暂停状态, 因为暂停的时候关闭了功放和dac,
 		// 所以需要再次打开功放和dac, 于是改成不在判断语句内打开, 对于多个声音合成,
 		// 相当于多打开一次dac和功放, 应该没有影响.
-#if defined(CONFIG_MAC_NP7000)
 		MillinsecoundDelay(250);
 
-		SetMoseCe(1);
-#else
-		SetPowerAmplifier(1);
-#endif
 		// 打开DA设备
 		DacDeviceOpen();
 
@@ -741,20 +736,17 @@ HANDLE DacOpen(void)
 		ListInsert(&DacList, &dac->Link);
 
 		//只有第一次打开声音设备才需要去掉BOBO音
-#if defined(CONFIG_MAC_NP7000)
-		MillinsecoundDelay(250);
-
-		SetPowerAmplifier(1);
-
-#else
-		MillinsecoundDelay(120);
+		MillinsecoundDelay(350);
 
 		SetMoseCe(1);
 
 		MillinsecoundDelay(30);
 
+		SetPowerAmplifier(1);
+
+		MillinsecoundDelay(30);
+
 		SetMuteMode(1);
-#endif
 	}
 	else
 		ListInsert(&DacList, &dac->Link);
@@ -1537,6 +1529,41 @@ int GetDacChannel(void)
 	}
 	kMutexRelease(hDacMutex);
 	return chs;
+}
+
+////////////////////////////////////////////////////
+// 功能: 得到BUF里剩余数据的时间
+// 输入: 
+// 输出:
+// 返回: 
+// 说明: 
+////////////////////////////////////////////////////
+int GetDacSpaceCount()
+{
+	int i;
+	int len;
+	PLIST head, n;
+	PDAC_DEVICE dac;
+	PRESAMPLE presample;
+
+	len = 0;
+	head = &DacList;
+	if( head )
+	{
+		n=ListFirst(head);
+		dac = ListEntry(n, DAC_DEVICE, Link);
+		if( dac )
+		{
+			presample = &dac->Resample;
+			for( i = 0 ; i < MAX_PCMBUFS ; i++ )
+			{
+				if( presample->BufFlag[i] == DAC_BUF_WRITE )
+					len +=DAC_PCMBUF_SIZE;
+			}
+		}
+	}
+
+	return len;
 }
 
 ////////////////////////////////////////////////////
