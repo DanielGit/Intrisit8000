@@ -30,7 +30,11 @@
 
 #ifdef SBR_DEC
 
+#ifdef __MINIOS__
+#include "mplaylib.h"
+#else
 #include <stdlib.h>
+#endif
 
 #include "sbr_syntax.h"
 #include "sbr_e_nf.h"

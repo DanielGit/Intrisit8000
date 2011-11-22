@@ -109,7 +109,7 @@ void VAE_map() {
    if (*(volatile unsigned int *)0xb30502c0 != 0x70000000)
     *(volatile unsigned int *)0xb30502c0 = 0x70000000;
     
-    arb0 = AHB_CIM(0)   | AHB_LCD(2) | AHB_IPU(1)  | AHB_AXI(1) | AHB_DMA(2) | \
+    arb0 = AHB_CIM(0)   | AHB_LCD(2) | AHB_IPU(1)  | AHB_AXI(1) | AHB_DMA(1) | \
            AHB_CORE0(1) | AHB_VPU(1) | AHB_AOSD(1) | AHB_AHB2(1)| AHB_ALL(0);
           
     if (*(volatile unsigned int *)0xb3000000 != arb0)

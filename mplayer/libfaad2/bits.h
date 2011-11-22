@@ -37,7 +37,11 @@ extern "C" {
 
 #include "analysis.h"
 #ifdef ANALYSIS
+#ifdef __MINIOS__
+#include "mplaylib.h"
+#else
 #include <stdio.h>
+#endif
 #endif
 
 #define BYTE_NUMBIT 8

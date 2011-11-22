@@ -6,17 +6,6 @@
 #ifndef __UCLIB_H__
 #define __UCLIB_H__
 
-//extern "C"
-//{
-//	
-//	unsigned int alloc(unsigned int nbytes);
-//	unsigned int Drv_realloc(unsigned int address,unsigned int nbytes);
-//	void deAlloc(unsigned int address);
-//  unsigned int Drv_calloc(unsigned int size,unsigned int n);
-//}
-#if DEF_NOT_PRINT
-#undef printf
-#endif
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h> 
@@ -30,26 +19,10 @@
 #ifdef __cplusplus
 extern "C"{
 #endif
-//#define	RAND_MAX	2147483647	
+
 #include "jz_mxu.h"
 
-#ifndef __cplusplus
-
-int printf(const char *fmt, ...);
-#if DEF_NOT_PRINT
-
-#undef printf
-#define printf(x,y...) ({x;})
-#endif
-#endif
-//typedef struct
-//{
-//  int quot;			// Quotient.  
-//  int rem;			// Remainder.  
-//} div_t;
-//
 #undef div
-  
 #define div(a, b)                       \
 ({                                      \
   div_t result;                         \
@@ -59,8 +32,212 @@ int printf(const char *fmt, ...);
 })
 
 #define off_t int 
-
 #define abs(a)	   (((a) < 0) ? -(a) : (a))
+
+static inline void *uc_memcpy(void *to,const void *from,unsigned int size)
+{
+	if((size >= 32) && ((unsigned int)to & 3) == 0 && ((unsigned int)from & 3) == 0)
+	{
+		register unsigned int tmp_src,tmp_dst,i;
+		tmp_src = (unsigned int)from - 4;
+		tmp_dst = (unsigned int)to - 4;
+    	i =  tmp_dst + (size & (~31)); 
+    	while(tmp_dst < i)
+    	{
+		    S32LDI(xr1, tmp_src, 4);
+		    S32LDI(xr2, tmp_src, 4);
+		    S32LDI(xr3, tmp_src, 4);
+		    S32LDI(xr4, tmp_src, 4);
+		    S32LDI(xr5, tmp_src, 4);
+		    S32LDI(xr6, tmp_src, 4);
+		    S32LDI(xr7, tmp_src, 4);
+		    S32LDI(xr8, tmp_src, 4);
+		    //i_pref(30,tmp_dst + 4,0);
+		    S32SDI(xr1, tmp_dst, 4);
+		    S32SDI(xr2, tmp_dst, 4);
+		    S32SDI(xr3, tmp_dst, 4);
+		    S32SDI(xr4, tmp_dst, 4);
+		    S32SDI(xr5, tmp_dst, 4);		    
+		    S32SDI(xr6, tmp_dst, 4);
+		    S32SDI(xr7, tmp_dst, 4);
+		    S32SDI(xr8, tmp_dst, 4);      
+		    
+	  }
+   	i += ((size & 31) & (~3));
+    
+    while(tmp_dst < i)
+    {
+    	S32LDI(xr1, tmp_src, 4);
+		  S32SDI(xr1, tmp_dst, 4);
+    }
+    switch((size & 3))
+    {
+    	case 0:
+    		break;
+    	case 1:
+    		tmp_dst += 4;
+    		tmp_src += 4;
+    		*((unsigned char *)tmp_dst) = *((unsigned char *)tmp_src);
+    		break;
+    	case 2:
+    		tmp_dst += 4;
+    		tmp_src += 4;
+    		*((unsigned char *)tmp_dst++) = *((unsigned char *)tmp_src++); 	
+    		*((unsigned char *)tmp_dst) = *((unsigned char *)tmp_src); 	
+    		break;
+    	case 3:
+    		tmp_dst += 4;
+    		tmp_src += 4;
+    		*((unsigned char *)tmp_dst++) = *((unsigned char *)tmp_src++); 	
+    		*((unsigned char *)tmp_dst++) = *((unsigned char *)tmp_src++); 	
+    		*((unsigned char *)tmp_dst) = *((unsigned char *)tmp_src); 	
+    		break;
+    }
+    return (void *)tmp_src;
+	}else 
+#ifdef NOAH_OS
+		return kmemcpy(to,from,size);	
+#else
+		return memcpy(to,from,size);	
+#endif
+	return 0;
+}
+
+static inline void uc_memset_tmp(void *to,unsigned char v,unsigned int size)
+{
+#ifdef NOAH_OS
+	kmemset(to,v,size);	
+#else
+	memset(to,v,size);
+#endif
+}
+
+static inline void uc_memset(void *to,unsigned char v,unsigned int size)
+{
+	unsigned int d;
+	unsigned char *c_to;
+	unsigned int end_to = (unsigned int)to + size;
+	unsigned int i_to;
+	unsigned int i_tmp;
+	#define MEMSET_JZ_MXU 1
+	
+	if(size < 32 + 8)
+	{
+		uc_memset_tmp(to,v,size);
+		return;
+	}	
+	//F("size = %d %x\n",size,(unsigned int) to);
+	d = 4 - ((unsigned int)to & 3);
+	c_to = (unsigned char *)to;
+	//F("d = %d\n",d);
+	switch(d)
+	{
+			case 1:
+				*c_to++ = v;
+				break;
+			case 2:
+				*c_to++ = v;
+				*c_to++ = v;
+				break;
+			case 3:
+				*c_to++ = v;
+				*c_to++ = v;
+				*c_to++ = v;
+				break;
+			default:
+				break;
+	}
+	
+	i_to = (unsigned int)c_to - 4;
+	d = (unsigned int)v | ((unsigned int)v << 8) | ((unsigned int)v << 16) | ((unsigned int)v << 24);
+	S32I2M(xr1,d);
+	if((unsigned int)c_to & (31))
+	{	
+			i_tmp = (i_to & (~31)) + 32;
+		
+		  //F("i_tmp = %x i_to = %x\n",i_tmp,i_to);
+		
+			while(i_tmp > i_to){
+				
+			#if MEMSET_JZ_MXU
+			S32SDI(xr1,i_to,4);
+			//S32SDIV(xr1,i_to,4,0);
+		
+			#else
+			  i_to += 4;
+			  *(unsigned int *)i_to = d;
+		  #endif   
+		}
+    }
+	i_tmp = ((end_to - 32) & (~31));
+	
+	//F("i_tmp = %x i_to = %x\n",i_tmp,i_to);
+	
+	while(i_tmp > i_to)  
+	{
+		#if MEMSET_JZ_MXU
+		i_pref(30,i_to + 4,0);
+		S32SDI(xr1,i_to,4);
+		S32SDI(xr1,i_to,4);
+		S32SDI(xr1,i_to,4);
+		S32SDI(xr1,i_to,4);
+		S32SDI(xr1,i_to,4);
+		S32SDI(xr1,i_to,4);
+		S32SDI(xr1,i_to,4);
+		S32SDI(xr1,i_to,4);
+		#else
+		i_to += 4;
+		*(unsigned int *)i_to = d;//S32SDI(xr1,i_to,4);
+	  i_to += 4;
+	  *(unsigned int *)i_to = d;//S32SDI(xr1,i_to,4);
+	  i_to += 4;
+	  *(unsigned int *)i_to = d;//S32SDI(xr1,i_to,4);
+	  i_to += 4;
+	  *(unsigned int *)i_to = d;//S32SDI(xr1,i_to,4);
+	  i_to += 4;
+		*(unsigned int *)i_to = d;//S32SDI(xr1,i_to,4);
+	  i_to += 4;
+	  *(unsigned int *)i_to = d;//S32SDI(xr1,i_to,4);
+	  i_to += 4;
+	  *(unsigned int *)i_to = d;//S32SDI(xr1,i_to,4);
+	  i_to += 4;
+	  *(unsigned int *)i_to = d;//S32SDI(xr1,i_to,4);
+	  #endif
+	  
+	}
+	i_tmp = ((end_to - 4) & (~3));
+	//F("i_tmp = %x i_to = %x\n",i_tmp,i_to);
+	while(i_tmp > i_to)
+	{
+	  #if MEMSET_JZ_MXU
+	  S32SDI(xr1,i_to,4);
+		#else
+		i_to		              += 4;
+	  *(unsigned int *)i_to = d;
+		#endif
+	}
+	i_tmp = (end_to & 3);
+	c_to = (unsigned char *)((unsigned int)i_to + 4);
+	//F("i_tmp = %x c_to = %x\n",i_tmp,c_to);
+	switch(i_tmp)
+	{
+		case 1:
+			*c_to++ = v;
+			break;
+		case 2:
+			*c_to++ = v;
+			*c_to++ = v;
+			break;
+		case 3:
+			
+			*c_to++ = v;
+			*c_to++ = v;
+			*c_to++ = v;
+			break;  		
+	}
+	//if((unsigned int)c_to != end_to)
+	//	while(1);	
+}
 
 #undef memset
 //#define DEBUG_MEMSET
@@ -103,7 +280,6 @@ void *uc_memalign(unsigned int x,unsigned int size);
 char * uc_strdup(const char *str);
 
 //#define MEMDEBUG
-
 #undef malloc
 #ifdef MEMDEBUG
 #define malloc(x) ({void * mem;printf("malloc:%s %d",__FILE__,__LINE__);mem = uc_malloc(x);printf(" addr = %08x len = %d\n",mem,x);mem;})

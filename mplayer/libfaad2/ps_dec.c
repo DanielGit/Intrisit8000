@@ -32,7 +32,11 @@
 
 #ifdef PS_DEC
 
+#ifdef __MINIOS__
+#include "mplaylib.h"
+#else
 #include <stdlib.h>
+#endif
 #include "ps_dec.h"
 #include "ps_tables.h"
 

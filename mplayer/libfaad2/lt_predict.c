@@ -31,7 +31,11 @@
 
 #ifdef LTP_DEC
 
+#ifdef __MINIOS__
+#include "mplaylib.h"
+#else
 #include <stdlib.h>
+#endif
 #include "syntax.h"
 #include "lt_predict.h"
 #include "filtbank.h"

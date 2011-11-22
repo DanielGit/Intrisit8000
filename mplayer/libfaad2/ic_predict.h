@@ -33,10 +33,13 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+#ifdef FIXED_POINT
+#define ALPHA      14848
+#define A          15616
+#else
 #define ALPHA      REAL_CONST(0.90625)
 #define A          REAL_CONST(0.953125)
-
+#endif
 
 void pns_reset_pred_state(ic_stream *ics, pred_state *state);
 void reset_all_predictors(pred_state *state, uint16_t frame_len);

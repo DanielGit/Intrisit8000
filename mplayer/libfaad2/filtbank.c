@@ -28,8 +28,12 @@
 #include "common.h"
 #include "structs.h"
 
+#ifdef __MINIOS__
+#include "mplaylib.h"
+#else
 #include <stdlib.h>
 #include <string.h>
+#endif
 #ifdef _WIN32_WCE
 #define assert(x)
 #else
@@ -158,7 +162,267 @@ static INLINE void mdct(fb_info *fb, real_t *in_data, real_t *out_data, uint16_t
     faad_mdct(mdct, in_data, out_data);
 }
 #endif
+#if defined(JZ4750_OPT)
+void ifilter_bank(fb_info *fb, uint8_t window_sequence, uint8_t window_shape,
+                  uint8_t window_shape_prev, real_t *freq_in,
+                  real_t *time_out, real_t *overlap,
+                  uint8_t object_type, uint16_t frame_len)
+{
+    int16_t i;
+    ALIGN real_t transf_buf[2*1024] = {0};
 
+    const real_t *window_long = NULL;
+    const real_t *window_long_prev = NULL;
+    const real_t *window_short = NULL;
+    const real_t *window_short_prev = NULL;
+    real_t *pover, *ptime;
+    real_t *idxfreq, *idxtran;
+    real_t tmpidx, tranidx, winidx1,winidx2;
+
+    uint16_t nlong = frame_len;
+    uint16_t nshort = frame_len>>3;
+    uint16_t trans = nshort>>1;
+
+    uint16_t nflat_ls = (nlong-nshort)>>1;
+
+
+    /* select windows of current frame and previous frame (Sine or KBD) */
+#ifdef LD_DEC
+    if (object_type == LD)
+    {
+        window_long       = fb->ld_window[window_shape];
+        window_long_prev  = fb->ld_window[window_shape_prev];
+    } else {
+#endif
+        window_long       = fb->long_window[window_shape];
+        window_long_prev  = fb->long_window[window_shape_prev];
+        window_short      = fb->short_window[window_shape];
+        window_short_prev = fb->short_window[window_shape_prev];
+#ifdef LD_DEC
+    }
+#endif
+
+
+
+    switch (window_sequence)
+    {
+    case ONLY_LONG_SEQUENCE:
+        /* perform iMDCT */
+        imdct_long(fb, freq_in, transf_buf, 2*nlong);
+
+        /* add second half output of previous frame to windowed output of current frame */
+        pover = overlap - 1;
+        ptime = time_out - 1;
+        for (i = 0; i < nlong; i+=4)
+        {
+            S32MUL(xr3,xr4, transf_buf[i], window_long_prev[i]);
+            S32LDI(xr1, pover, 4);
+            S32MUL(xr5,xr6, transf_buf[i+1], window_long_prev[i+1]);
+            S32LDI(xr2, pover, 4);
+            D32SLL(xr3,xr3,xr5,xr5,1);
+            D32ASUM_AA(xr3,xr1,xr2,xr5);
+            S32SDI(xr3, ptime, 4);
+            S32MUL(xr9,xr10, transf_buf[i+2], window_long_prev[i+2]);
+            S32SDI(xr5, ptime, 4);
+            S32MUL(xr11,xr12, transf_buf[i+3], window_long_prev[i+3]);
+            S32LDI(xr7, pover, 4);
+            S32LDI(xr8, pover, 4);
+            D32SLL(xr9,xr9,xr11,xr11,1);
+            D32ASUM_AA(xr9,xr7,xr8,xr11);
+            S32SDI(xr9, ptime, 4);
+            S32SDI(xr11, ptime, 4);
+        }
+
+        pover = overlap - 1;
+        /* window the second half and save as overlap for next frame */
+        for (i = 0; i < nlong; i+=4)
+        {
+            int idxtranl;
+            int idxwinl;
+            
+            idxtranl = nlong + i;
+            idxwinl = nlong - i - 1;
+            S32MUL(xr1, xr2, transf_buf[idxtranl++],window_long[idxwinl--]);
+            S32MUL(xr3, xr4, transf_buf[idxtranl++],window_long[idxwinl--]);
+            S32MUL(xr5, xr6, transf_buf[idxtranl++],window_long[idxwinl--]);
+            S32MUL(xr7, xr8, transf_buf[idxtranl++],window_long[idxwinl--]);
+            D32SLL(xr1,xr1,xr3,xr3,1);
+            S32SDI(xr1,pover, 4);
+            S32SDI(xr3,pover, 4);
+            D32SLL(xr5,xr5,xr7,xr7,1);
+            S32SDI(xr5,pover, 4);
+            S32SDI(xr7,pover, 4);
+        }
+        break;
+
+    case LONG_START_SEQUENCE:
+        /* perform iMDCT */
+        imdct_long(fb, freq_in, transf_buf, 2*nlong);
+
+        /* add second half output of previous frame to windowed output of current frame */
+        for (i = 0; i < nlong; i+=4)
+        {
+            time_out[i]   = overlap[i]   + MUL_F(transf_buf[i],window_long_prev[i]);
+            time_out[i+1] = overlap[i+1] + MUL_F(transf_buf[i+1],window_long_prev[i+1]);
+            time_out[i+2] = overlap[i+2] + MUL_F(transf_buf[i+2],window_long_prev[i+2]);
+            time_out[i+3] = overlap[i+3] + MUL_F(transf_buf[i+3],window_long_prev[i+3]);
+        }
+
+        /* window the second half and save as overlap for next frame */
+        /* construct second half window using padding with 1's and 0's */
+        for (i = 0; i < nflat_ls; i++)
+            overlap[i] = transf_buf[nlong+i];
+        for (i = 0; i < nshort; i++)
+            overlap[nflat_ls+i] = MUL_F(transf_buf[nlong+nflat_ls+i],window_short[nshort-i-1]);
+        for (i = 0; i < nflat_ls; i++)
+            overlap[nflat_ls+nshort+i] = 0;
+
+        break;
+
+    case EIGHT_SHORT_SEQUENCE:
+        idxfreq = freq_in;
+        idxtran = transf_buf;
+
+        /* perform iMDCT for each short block */
+        faad_imdct(fb->mdct256, idxfreq,idxtran);
+        idxfreq += nshort;
+        idxtran += (nshort << 1);
+        faad_imdct(fb->mdct256, idxfreq, idxtran);
+        idxfreq += nshort;
+        idxtran += (nshort << 1);
+        faad_imdct(fb->mdct256, idxfreq, idxtran);
+        idxfreq += nshort;
+        idxtran += (nshort << 1);
+        faad_imdct(fb->mdct256, idxfreq, idxtran);
+        idxfreq += nshort;
+        idxtran += (nshort << 1);
+        faad_imdct(fb->mdct256, idxfreq, idxtran);
+        idxfreq += nshort;
+        idxtran += (nshort << 1);
+        faad_imdct(fb->mdct256, idxfreq, idxtran);
+        idxfreq += nshort;
+        idxtran += (nshort << 1);
+        faad_imdct(fb->mdct256, idxfreq, idxtran);
+        idxfreq += nshort;
+        idxtran += (nshort << 1);
+        faad_imdct(fb->mdct256, idxfreq, idxtran);
+
+        /* add second half output of previous frame to windowed output of current frame */
+        for (i = 0; i < nflat_ls; i++)
+            time_out[i] = overlap[i];
+        tmpidx = nflat_ls - nshort;
+        for(i = 0; i < nshort; i++)
+        {
+        	pover = overlap + tmpidx;
+        	ptime = time_out + tmpidx++;
+            tranidx = i;
+            winidx1 = window_short[i];
+            winidx2 = window_short[nshort-1-i];
+            S32MUL(xr1, xr2, transf_buf[tranidx],window_short_prev[i]);
+            tranidx += nshort;
+            S32MUL(xr3, xr4, transf_buf[tranidx],winidx2);
+            tranidx += nshort;
+            S32MADD(xr3, xr4, transf_buf[tranidx],winidx1);
+            tranidx += nshort;
+            S32LDIV(xr5, pover,nshort,2); 
+            S32LDIV(xr6, pover,nshort,2); 
+            D32SLL(xr1, xr1, xr3, xr3,1);
+            D32ASUM_AA(xr1,xr5,xr6,xr3);
+            S32SDIV(xr1, ptime, nshort, 2);
+            S32SDIV(xr3, ptime, nshort, 2);
+            S32MUL(xr7, xr8, transf_buf[tranidx],winidx2);
+            tranidx += nshort;
+            S32MADD(xr7, xr8, transf_buf[tranidx],winidx1);
+            tranidx += nshort;
+            S32MUL(xr9, xr10, transf_buf[tranidx],winidx2);
+            tranidx += nshort;
+            S32MADD(xr9, xr10, transf_buf[tranidx],winidx1);
+            S32LDIV(xr11, pover,nshort,2); 
+            S32LDIV(xr12, pover,nshort,2); 
+            D32SLL(xr7, xr7, xr9, xr9,1);
+            D32ASUM_AA(xr7, xr11, xr12, xr9);
+            S32SDIV(xr7, ptime, nshort, 2);
+            S32SDIV(xr9, ptime, nshort, 2);
+            if (i < trans)
+            {
+            tranidx += nshort;
+               S32MUL(xr1, xr2, transf_buf[tranidx],winidx2);
+            tranidx += nshort;
+               S32MADD(xr1, xr2, transf_buf[tranidx],winidx1);
+               S32LDIV(xr3, pover,nshort,2); 
+               D32SLL(xr1, xr1, xr0,xr0,1);
+               D32ASUM_AA(xr1,xr3,xr0,xr0);
+               S32SDIV(xr1, ptime, nshort, 2);
+            }
+        }
+
+        /* window the second half and save as overlap for next frame */
+        tmpidx = nflat_ls+(nshort<<2)-nlong;
+        for(i = 0; i < nshort; i++)
+        {
+            pover = overlap + tmpidx++;
+            tranidx = 9 * nshort + i;
+            winidx1 = window_short[i];
+            winidx2 = window_short[nshort - 1 -i];
+            if (i >= trans)
+            {
+               pover -= nshort;
+               tranidx -= (nshort << 1);
+               S32MUL(xr1,xr2,transf_buf[tranidx],winidx2);
+               tranidx += nshort;
+               S32MADD(xr1,xr2,transf_buf[tranidx],winidx1);
+               tranidx += nshort;
+               D32SLL(xr1,xr1,xr0,xr0,1);
+               S32SDIV(xr1, pover,nshort,2);
+            } 
+            S32MUL(xr1, xr2, transf_buf[tranidx],winidx2);
+               tranidx += nshort;
+            S32MADD(xr1, xr2, transf_buf[tranidx],winidx1);   
+               tranidx += nshort;
+            S32MUL(xr3, xr4, transf_buf[tranidx],winidx2);
+               tranidx += nshort;
+            S32MADD(xr3, xr4, transf_buf[tranidx],winidx1);
+               tranidx += nshort;
+            D32SLL(xr1,xr1,xr3,xr3,1);
+            S32SDIV(xr1, pover, nshort,2);
+            S32SDIV(xr3, pover, nshort,2);
+            S32MUL(xr5, xr6, transf_buf[tranidx],winidx2);
+               tranidx += nshort;
+            S32MADD(xr5,xr6, transf_buf[tranidx],winidx1);
+               tranidx += nshort;
+            S32MUL(xr7, xr8, transf_buf[tranidx],winidx2);
+            D32SLL(xr5, xr5,xr7, xr7,1);
+            S32SDIV(xr5, pover, nshort,2);
+            S32SDIV(xr7, pover, nshort,2);
+        }
+        for (i = 0; i < nflat_ls; i++)
+            overlap[nflat_ls+nshort+i] = 0;
+        
+        break;
+
+    case LONG_STOP_SEQUENCE:
+        /* perform iMDCT */
+        imdct_long(fb, freq_in, transf_buf, 2*nlong);
+
+        /* add second half output of previous frame to windowed output of current frame */
+        /* construct first half window using padding with 1's and 0's */
+        for (i = 0; i < nflat_ls; i++)
+            time_out[i] = overlap[i];
+        for (i = 0; i < nshort; i++)
+            time_out[nflat_ls+i] = overlap[nflat_ls+i] + MUL_F(transf_buf[nflat_ls+i],window_short_prev[i]);
+        for (i = 0; i < nflat_ls; i++)
+            time_out[nflat_ls+nshort+i] = overlap[nflat_ls+nshort+i] + transf_buf[nflat_ls+nshort+i];
+
+        /* window the second half and save as overlap for next frame */
+        for (i = 0; i < nlong; i++)
+            overlap[i] = MUL_F(transf_buf[nlong+i],window_long[nlong-1-i]);
+		break;
+    }
+
+
+
+}
+#else //JZ4750_OPT
 void ifilter_bank(fb_info *fb, uint8_t window_sequence, uint8_t window_shape,
                   uint8_t window_shape_prev, real_t *freq_in,
                   real_t *time_out, real_t *overlap,
@@ -328,6 +592,7 @@ void ifilter_bank(fb_info *fb, uint8_t window_sequence, uint8_t window_shape,
     fb->cycles += count;
 #endif
 }
+#endif //JZ4750_OPT
 
 
 #ifdef LTP_DEC

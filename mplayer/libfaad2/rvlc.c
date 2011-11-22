@@ -41,7 +41,11 @@
 #include "common.h"
 #include "structs.h"
 
+#ifdef __MINIOS__
+#include "mplaylib.h"
+#else
 #include <stdlib.h>
+#endif
 
 #include "syntax.h"
 #include "bits.h"

@@ -33,7 +33,7 @@
  * As described in:
  *  P. Duhamel, Y. Mahieux, and J.P. Petit, "A Fast Algorithm for the
  *  Implementation of Filter Banks Based on 'Time Domain Aliasing
- *  Cancellation’," IEEE Proc. on ICASSP‘91, 1991, pp. 2209-2212.
+ *  Cancellation?" IEEE Proc. on ICASSP?1, 1991, pp. 2209-2212.
  *
  *
  * As of April 6th 2002 completely rewritten.
@@ -44,7 +44,11 @@
 #include "common.h"
 #include "structs.h"
 
+#ifdef __MINIOS__
+#include "mplaylib.h"
+#else
 #include <stdlib.h>
+#endif
 #ifdef _WIN32_WCE
 #define assert(x)
 #else
@@ -146,10 +150,28 @@ void faad_imdct(mdct_info *mdct, real_t *X_in, real_t *X_out)
         /* adjust scale for non-power of 2 MDCT */
         /* 2048/1920 */
         b_scale = 1;
+#if defined(JZ4750_OPT)
+        scale = 286331153;
+#else
         scale = COEF_CONST(1.0666666666666667);
+#endif
     }
 #endif
 #endif
+#if defined(JZ4750_OPT)
+    real_t *in1, *in2;
+    in1 = X_in;
+    in2 = X_in + N2 - 1;
+    /* pre-IFFT complex multiplication */
+    for (k = 0; k < N4; k++)
+    {
+        CMUL(IM(Z1[k]), RE(Z1[k]),
+            *in1 , *in2 , RE(sincos[k]), IM(sincos[k]));
+        in1 += 2;
+        in2 -= 2;
+    }
+
+#else
 
     /* pre-IFFT complex multiplication */
     for (k = 0; k < N4; k++)
@@ -157,7 +179,7 @@ void faad_imdct(mdct_info *mdct, real_t *X_in, real_t *X_out)
         ComplexMult(&IM(Z1[k]), &RE(Z1[k]),
             X_in[2*k], X_in[N2 - 1 - 2*k], RE(sincos[k]), IM(sincos[k]));
     }
-
+#endif
 #ifdef PROFILE
     count1 = faad_get_ts();
 #endif
@@ -172,11 +194,16 @@ void faad_imdct(mdct_info *mdct, real_t *X_in, real_t *X_out)
     /* post-IFFT complex multiplication */
     for (k = 0; k < N4; k++)
     {
+#if defined(JZ4750_OPT)
+        CMUL(IM(Z1[k]), RE(Z1[k]),
+            IM(Z1[k]), RE(Z1[k]), RE(sincos[k]), IM(sincos[k]));
+
+#else
         RE(x) = RE(Z1[k]);
         IM(x) = IM(Z1[k]);
         ComplexMult(&IM(Z1[k]), &RE(Z1[k]),
             IM(x), RE(x), RE(sincos[k]), IM(sincos[k]));
-
+#endif
 #ifdef ALLOW_SMALL_FRAMELENGTH
 #ifdef FIXED_POINT
         /* non-power of 2 MDCT scaling */

@@ -28,8 +28,13 @@
 #include "common.h"
 #include "structs.h"
 
+#ifdef __MINIOS__
+#include "mplaylib.h"
+#else
 #include <stdlib.h>
 #include <string.h>
+#endif
+
 #include "bits.h"
 
 /* initialize buffer, call once before first getbits or showbits */

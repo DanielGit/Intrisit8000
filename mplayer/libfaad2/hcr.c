@@ -28,8 +28,12 @@
 #include "common.h"
 #include "structs.h"
 
+#ifdef __MINIOS__
+#include "mplaylib.h"
+#else
 #include <stdlib.h>
 #include <string.h>
+#endif
 
 #include "specrec.h"
 #include "huffman.h"

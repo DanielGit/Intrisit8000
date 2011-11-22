@@ -28,7 +28,11 @@
 #include "common.h"
 #include "structs.h"
 
+#ifdef __MINIOS__
+#include "mplaylib.h"
+#else
 #include <stdlib.h>
+#endif
 
 #include "bits.h"
 #include "mp4.h"

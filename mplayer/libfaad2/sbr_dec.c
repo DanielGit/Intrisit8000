@@ -34,8 +34,12 @@
 
 #ifdef SBR_DEC
 
+#ifdef __MINIOS__
+#include "mplaylib.h"
+#else
 #include <string.h>
 #include <stdlib.h>
+#endif
 
 #include "syntax.h"
 #include "bits.h"
