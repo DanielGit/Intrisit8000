@@ -1158,7 +1158,7 @@ const demuxer_desc_t demuxer_desc_mpeg_ps = {
   "Arpi?",
   "Mpeg",
   DEMUXER_TYPE_MPEG_PS,
-  1, // unsafe autodetect
+  0, // unsafe autodetect
   demux_mpg_probe,
   demux_mpg_fill_buffer,
   demux_mpg_ps_open,

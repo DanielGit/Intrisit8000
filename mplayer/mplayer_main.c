@@ -313,7 +313,7 @@ static int softsleep=0;
        double force_fps=0;
 static int force_srate=0;
 static int audio_output_format=-1; // AF_FORMAT_UNKNOWN
-       int frame_dropping=2; // option  0=no drop  1= drop vo  2= drop decode
+       int frame_dropping=1; // option  0=no drop  1= drop vo  2= drop decode
 static int play_n_frames=-1;
 static int play_n_frames_mf=-1;
 
@@ -409,35 +409,8 @@ extern Jz47_AV_Decoder *jz47_av_decp;
 extern char* noah_get_file_name();*/
 extern int ipu_image_completed;
 extern unsigned int mp_memory_empty;
-
 #endif
-#ifdef __MINIOS__
-static volatile int seekmode = 0;
-static int v_video_seektime = 0;
-static int v_video_pts = 0;
-static unsigned int mp_mode = 0;
-static float curseektime = 0;
-static volatile int rel_seek_secs_ms = 0;
-#ifndef NOAH_OS
-void *audio_sem_filemode = NULL;
-static void * mp_sem_seek = NULL;
-static void * mp_sem_pause = NULL;
-void* audiostk = 0;
-#define OP_AU_LOCK()
-#define OP_AU_UNLOCK()
-#endif
-static volatile int seek_start=0;
-static int seek_error = 0;
-static int seek2pos = 0;
 int opt_exit = 0;
-unsigned int g_switch = 0;
-static unsigned int inited_flags=0;
-static volatile unsigned int AudioPauseStatus = 0;
-static float old_rel_seek_secs = 0;
-static int old_abs_seek_pos = 0;
-static int exit_player_mode = 1;
-static void initmplayer();
-#endif
 //**************************************************************************//
 const void *mpctx_get_video_out(MPContext *mpctx)
 {
@@ -924,13 +897,6 @@ void exit_player_with_rc(enum exit_reason how, int rc)
 #endif
 #ifdef JZC_HW_MEDIA
   VAE_unmap();
-#endif
-
-#if EXCEPTION_MPLAYER
-	DecExcept(mp_excptid,saveregister);
-
-	F("exit\n");
-	excpt_exit(exit_player_mode,saveregister);
 #endif
 
 #ifndef __MINIOS__
@@ -3663,10 +3629,8 @@ void SetMplayerSeek(int f)
 {
 	seek(mpctx, f / 1000.0f ,1);
 
-	seek_start = 0;
 	rel_seek_secs=0;
 	abs_seek_pos=0;
-	rel_seek_secs_ms = 0;
 	GetRelativeTime();	// ignore time that passed during pause
 }
 
@@ -3677,23 +3641,12 @@ void SetMplayerSeek(int f)
 // ·µ»Ø: 
 // ËµÃ÷: 
 ////////////////////////////////////////////////////
-int get_video_pts()
-{
-	return v_video_pts;
-}
-
 int GetMplayerCurTime()
 {
-	if(0)
-	{
-		return get_video_pts();//(int)(demuxer_get_current_time(mpctx->demuxer)*1000.0 );
-	}else
-	{
-		if(!mpctx->audio_out) return -1;
-		float f = playing_audio_pts(mpctx->sh_audio, mpctx->d_audio, mpctx->audio_out);
-		f = f* 1000.0;
-		return (int)f;
-	}
+	if(!mpctx->audio_out) return -1;
+	float f = playing_audio_pts(mpctx->sh_audio, mpctx->d_audio, mpctx->audio_out);
+	f = f* 1000.0;
+	return (int)f;
 }
 
 long labs(long x)
