@@ -23,8 +23,12 @@
 
 #include "config.h"
 
+#ifdef __MINIOS__
+#include "mplaylib.h"
+#else
 #include <string.h>	/* memcmp/memset, try to remove */
 #include <stdlib.h>
+#endif
 #include <inttypes.h>
 
 #include "mpeg2.h"
@@ -441,9 +445,6 @@ mpeg2dec_t * mpeg2_init (void)
     mpeg2dec->sequence.width = (unsigned)-1;
     mpeg2_reset (mpeg2dec, 1);
 
-#ifdef JZC_MXU_OPT
-    S32I2M(xr16, 0x3);
-#endif
     return mpeg2dec;
 }
 

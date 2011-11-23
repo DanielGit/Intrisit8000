@@ -26,8 +26,12 @@
  */
 
 #include "config.h"
+#ifdef __MINIOS__
+#include "mplaylib.h"
+#else
 #include <stdlib.h>
 #include <inttypes.h>
+#endif
 
 #include "mpeg2.h"
 #include "attributes.h"

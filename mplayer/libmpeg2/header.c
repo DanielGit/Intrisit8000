@@ -29,8 +29,12 @@
 #include "config.h"
 
 #include <inttypes.h>
+#ifdef __MINIOS__
+#include "mplaylib.h"
+#else
 #include <stdlib.h>	/* defines NULL */
 #include <string.h>	/* memcmp */
+#endif
 
 #include "mpeg2.h"
 #include "attributes.h"
@@ -715,7 +719,7 @@ void mpeg2_header_picture_finalize (mpeg2dec_t * mpeg2dec, uint32_t accels)
 	    mpeg2dec->fbuf[2] = mpeg2dec->fbuf[1];
 	    mpeg2dec->fbuf[1] = mpeg2dec->fbuf[0];
 	}
-	mpeg2dec->fbuf[0] = NULL;
+	//mpeg2dec->fbuf[0] = NULL;
 	mpeg2_reset_info (&(mpeg2dec->info));
 	mpeg2dec->info.current_picture = picture;
 	mpeg2dec->info.display_picture = picture;
