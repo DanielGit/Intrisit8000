@@ -79,16 +79,25 @@ void VAE_map() {
 	cpm_base = mmap((void *)0, CPM__SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, vae_fd, 
 			CPM__OFFSET);	
 #endif
+
         cpm_gate0 = *(volatile unsigned int *)(cpm_base + 0x20);
         cpm_gate1 = *(volatile unsigned int *)(cpm_base + 0x28);
+#if 0        
         *(volatile unsigned int *)(cpm_base + 0x20) = 0;
 		*(volatile unsigned int *)(cpm_base + 0x20) = 
 	(1 << 27|1 << 26|1 << 23|1 << 22|1 << 21|1 << 18|1 << 17|1 << 9);
         *(volatile unsigned int *)(cpm_base + 0x28) = 0;
 		*(volatile unsigned int *)(cpm_base + 0x28) = (1 << 9);
-	printf("VAE mmap successfully done!\n");
+#else
+  		/* Enable cpm clock */
+		*(volatile unsigned int *)0xb0000020 = 0;
+		*(volatile unsigned int *)0xb0000028 = 0;
+		*(volatile unsigned int *)0xb0000024 |= (1 << 31);		
+#endif		
+	  kprintf("VAE mmap successfully done!\n");
 		int arb0 = 0;
-	#define AHB_CIM(n)    (((n) & 0x3) << 0)
+		
+#define AHB_CIM(n)    (((n) & 0x3) << 0)
 #define AHB_LCD(n)    (((n) & 0x3) << 2)
 #define AHB_IPU(n)    (((n) & 0x3) << 4)
 #define AHB_AXI(n)    (((n) & 0x3) << 6)

@@ -2926,6 +2926,46 @@ static int seek(MPContext *mpctx, double amount, int style)
     return 0;
 }
 
+#define WDT_CLK_DIV1    0
+#define WDT_CLK_DIV4    1
+#define WDT_CLK_DIV16   2
+#define WDT_CLK_DIV64   3
+#define WDT_CLK_DIV256  4
+#define WDT_CLK_DIV1024 5
+
+#define WDT_CLK_DIV_SHF 3
+
+#define WDT_EXT_INPUT   (1 << 2)
+#define WDT_RTC_INPUT   (1 << 1)
+#define WDT_PCK_INPUT   (1 << 0)
+
+#define WDT_TCSR_ADDR16   (0xb000200c)
+#define WDT_TER_ADDR8     (0xb0002004)
+#define WDT_TDR_ADDR16    (0xb0002000)
+#define WDT_TCNT_ADDR16   (0xb0002008) 
+
+void watchdog_init (int msec)
+{
+	*(volatile unsigned char *) WDT_TER_ADDR8 = 0;
+	*(volatile unsigned short *)WDT_TCSR_ADDR16 = WDT_RTC_INPUT | (WDT_CLK_DIV64 << WDT_CLK_DIV_SHF);
+	*(volatile unsigned short *)WDT_TDR_ADDR16 =  msec * 32768 / 1000 / 64;
+	*(volatile unsigned short *)WDT_TCNT_ADDR16 = 0;
+}
+
+void watchdog_enable ()
+{
+	*(volatile unsigned char *) WDT_TER_ADDR8 = 1;
+}
+
+void watchdog_disable ()
+{
+	*(volatile unsigned char *) WDT_TER_ADDR8 = 0;
+}
+
+void watchdog_kick ()
+{
+	*(volatile unsigned short *)WDT_TCNT_ADDR16 = 0;
+}
 
 ////////////////////////////////////////////////////
 // 功能: 初始化MPLAYER库
@@ -2966,6 +3006,9 @@ mp_memory_init();
 	  unsigned int eaddr;
 	  eaddr = i_mfc0_2(30, 0);
     kprintf ("\n\n+++++++ Error PC = 0x%08x +++++++\n\n", eaddr);
+//    watchdog_init (10000);
+//    watchdog_enable ();
+    kprintf ("\n\n watch dog init and enable complete \n\n");
   }
 
 #ifdef JZC_CRC_VER
@@ -3452,7 +3495,8 @@ return (int)(mpctx->sh_video->pts*1000);
 ////////////////////////////////////////////////////
 int MplayerCloseLib()
 {
-	uninit_player(INITIALIZED_ALL-(INITIALIZED_GUI+INITIALIZED_INPUT+(fixed_vo?INITIALIZED_VO:0)));
+	uninit_player(INITIALIZED_ALL-(INITIALIZED_GUI+INITIALIZED_INPUT+(fixed_vo?INITIALIZED_VO:0)));		
+//  watchdog_disable ();
 	vo_sub_last = vo_sub=NULL;
 	subdata=NULL;
  	mpctx->eof = 1;

@@ -543,8 +543,8 @@ static int jz47_config_stop_ipu ()
   /* Base on the runing_mode and switch_mode, disable lcd or stop ipu.  */
   if (runing_mode == 'A' && switch_mode == 'A')
   {
-    stop_ipu(ipu_vbase);
-    while (ipu_is_enable(ipu_vbase) && (!polling_end_flag(ipu_vbase)))
+    //stop_ipu(ipu_vbase);
+    while (ipu_is_enable(ipu_vbase) && ipu_is_run(ipu_vbase) && (!polling_end_flag(ipu_vbase)))
       ;
     //clear_end_flag(ipu_vbase);
   }
@@ -650,7 +650,8 @@ int jz47_put_image_with_ipu (struct vf_instance *vf, mp_image_t *mpi, double pts
 
   /* run ipu */
   jz47_config_run_ipu ();
-//  while(ipu_is_enable(ipu_vbase) && (!polling_end_flag(ipu_vbase)));
+  while (ipu_is_enable(ipu_vbase) && ipu_is_run(ipu_vbase) && (!polling_end_flag(ipu_vbase)))
+    ;
 
   if (DEBUG_LEVEL > 1)
     jz47_dump_ipu_regs(-1);
@@ -685,6 +686,7 @@ int jz47_put_image (struct vf_instance *vf, mp_image_t *mpi, double pts)
   mp_image_t *dmpi=mpi->priv;
   SwsContext *c = vf->priv->ctx;
 
+//  watchdog_kick ();
   if (!(mpi->flags & MP_IMGFLAG_DRAW_CALLBACK && dmpi))
   {
     if (mpi->pict_type == 1)  /* P_type */

@@ -222,6 +222,9 @@ do {                                                               \
 #define ipu_is_enable(IPU_V_BASE) \
 (REG32(IPU_V_BASE + REG_CTRL) & IPU_EN)
 
+#define ipu_is_run(IPU_V_BASE) \
+(REG32(IPU_V_BASE + REG_CTRL) & IPU_RUN)
+
 #ifdef __LINUX__
 #define reset_ipu(IPU_V_BASE) \
 do {                                        \
@@ -230,11 +233,11 @@ do {                                        \
   REG32(IPU_V_BASE + REG_CTRL) = IPU_EN;     \
 } while (0)
 #else
-#define reset_ipu(IPU_V_BASE) \
-do {                                        \
-  REG32(CPM_CLKGR_VADDR) &= ~(IPU_CLOCK);   \
-  REG32(IPU_V_BASE + REG_CTRL) = IPU_RESET;  \
-  REG32(IPU_V_BASE + REG_CTRL) = IPU_EN;     \
+#define reset_ipu(IPU_V_BASE)                   \
+do {                                            \
+  /*REG32(CPM_CLKGR_VADDR) &= ~(IPU_CLOCK);*/   \
+  REG32(IPU_V_BASE + REG_CTRL) = IPU_RESET;     \
+  REG32(IPU_V_BASE + REG_CTRL) = IPU_EN;        \
 } while (0)
 #endif
 
