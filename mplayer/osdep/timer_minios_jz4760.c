@@ -6,6 +6,7 @@
 #include "mplayertm.h"
 #include "config.h"
 
+unsigned int Get_PerformanceCounter ();
 const char *timer_name =  "sleep minios";
 extern void BUFF_TimeDly(unsigned int tm);
 /*
