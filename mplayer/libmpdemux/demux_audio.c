@@ -761,7 +761,7 @@ const demuxer_desc_t demuxer_desc_audio = {
   "?",
   "Audio only files",
   DEMUXER_TYPE_AUDIO,
-  1, // unsafe autodetect
+  0, // unsafe autodetect
   demux_audio_open,
   demux_audio_fill_buffer,
   NULL,
