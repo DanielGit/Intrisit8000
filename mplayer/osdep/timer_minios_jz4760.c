@@ -49,14 +49,14 @@ static unsigned int RelativeTime = 0;
 // Returns time spent between now and last call in milliseconds
 float GetRelativeTime(void){
   unsigned int t,r;
-  t= Get_PerformanceCounter() / DIV_TIMER;
+  t= Get_PerformanceCounter();
   //F("%d\n",t);
  
   r = t - RelativeTime;
   RelativeTime = t; 
   if(r > 0x7fffffff)
   	r = 0xffffffff - r;
-  return (float)r * (float)0.000001;
+  return (float)r * (float)0.000001  / DIV_TIMER;
 }
 
 // Initialize timer, must be called at least once at start
