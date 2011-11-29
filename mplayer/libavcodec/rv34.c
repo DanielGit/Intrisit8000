@@ -1981,8 +1981,15 @@ static int rv34_decode_mb_header(RV34DecContext *r, int8_t *intra_types)
     r->block_type = r->is16 ? RV34_MB_TYPE_INTRA16x16 : RV34_MB_TYPE_INTRA;
   }else{
     r->block_type = r->decode_mb_info(r);
+
+#if 1  //Daniel
+        if(r->block_type == -1 || r->block_type < 0 || r->block_type > sizeof(rv34_mb_type_to_lavc) / sizeof(rv34_mb_type_to_lavc[0]))
+            return -1;
+#else
     if(r->block_type == -1)
       return -1;
+#endif
+
     s->current_picture_ptr->mb_type[mb_pos] = rv34_mb_type_to_lavc[r->block_type];
     r->mb_type[mb_pos] = r->block_type;
     if(r->block_type == RV34_MB_SKIP){
@@ -2396,6 +2403,11 @@ static int rv34_decode_slice(RV34DecContext *r, int end, const uint8_t* buf, int
   }
 
   if ((s->mb_x == 0 && s->mb_y == 0) || s->current_picture_ptr==NULL) {
+  	
+#ifdef JZ47_OPT
+    if(r->si.width <= 0 || r->si.height <= 0)
+    	return -1;
+#endif
     if(s->width != r->si.width || s->height != r->si.height){
       av_log(s->avctx, AV_LOG_DEBUG, "Changing dimensions to %dx%d\n", r->si.width,r->si.height);
       MPV_common_end(s);
@@ -2646,7 +2658,15 @@ int ff_rv34_decode_frame(AVCodecContext *avctx,
         av_log(avctx, AV_LOG_ERROR, "Slice offset is greater than frame size\n");
         return -1;
     }
-    init_get_bits(&s->gb, buf+get_slice_offset(avctx, slices_hdr, 0), buf_size-get_slice_offset(avctx, slices_hdr, 0));
+    {
+      unsigned int buf_offset = get_slice_offset(avctx, slices_hdr, 0);
+
+      if (buf_offset < 0 || buf_offset > buf_size)
+        return -1;
+
+      init_get_bits(&s->gb, buf+buf_offset, buf_size-get_slice_offset(avctx, slices_hdr, 0));
+
+    }
     if(r->parse_slice_header(r, &r->s.gb, &si) < 0 || si.start){
         av_log(avctx, AV_LOG_ERROR, "First slice header is incorrect\n");
         return -1;

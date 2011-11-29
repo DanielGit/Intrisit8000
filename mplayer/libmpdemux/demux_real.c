@@ -575,7 +575,7 @@ static int demux_real_fill_buffer(demuxer_t *demuxer, demux_stream_t *dsds)
 {
     real_priv_t *priv = demuxer->priv;
     demux_stream_t *ds = NULL;
-    int len;
+    int len, tmplen;
     unsigned int timestamp;
     int stream_id;
 #ifdef CRACK_MATRIX
@@ -878,7 +878,7 @@ got_video:
 	    // frames are stored fragmented in the video chunks :(
 	    sh_video_t *sh_video = ds->sh;
 	    demux_packet_t *dp;
-	    unsigned vpkg_header, vpkg_length, vpkg_offset;
+	    unsigned vpkg_header, vpkg_length, vpkg_offset, tmpvpkg_offset;
 	    int vpkg_seqnum=-1;
 	    int vpkg_subseq=0;
 
@@ -981,11 +981,23 @@ got_video:
 			    // last fragment!
 			    if(dp_hdr->len!=vpkg_length-vpkg_offset)
 				mp_msg(MSGT_DEMUX,MSGL_V,"warning! assembled.len=%d  frag.len=%d  total.len=%d  \n",dp->len,vpkg_offset,vpkg_length-vpkg_offset);
-			    if (vpkg_offset > dp->len - sizeof(dp_hdr_t) - dp_hdr->len) vpkg_offset = dp->len - sizeof(dp_hdr_t) - dp_hdr->len;
+
+                            tmpvpkg_offset = vpkg_offset;
+
+			    //if (vpkg_offset > dp->len - sizeof(dp_hdr_t) - dp_hdr->len) vpkg_offset = dp->len - sizeof(dp_hdr_t) - dp_hdr->len;
+
+			    if (vpkg_offset > vpkg_length - dp_hdr->len) vpkg_offset = vpkg_length - dp_hdr->len;
             		    stream_read(demuxer->stream, dp_data+dp_hdr->len, vpkg_offset);
+
+                            if (tmpvpkg_offset > vpkg_offset)
+            		    stream_skip(demuxer->stream, tmpvpkg_offset - vpkg_offset);
+
 			    if((dp_data[dp_hdr->len]&0x20) && (sh_video->format==0x30335652)) --dp_hdr->chunks; else
 			    dp_hdr->len+=vpkg_offset;
-			    len-=vpkg_offset;
+
+			    //len-=vpkg_offset;
+			    len-=tmpvpkg_offset;
+
  			    mp_dbg(MSGT_DEMUX,MSGL_DBG2, "fragment (%d bytes) appended, %d bytes left\n",vpkg_offset,len);
 			    // we know that this is the last fragment -> we can close the packet!
 			    queue_video_packet(priv, ds, dp);
@@ -996,8 +1008,12 @@ got_video:
 			// non-last fragment:
 			if(dp_hdr->len!=vpkg_offset)
 			    mp_msg(MSGT_DEMUX,MSGL_V,"warning! assembled.len=%d  offset=%d  frag.len=%d  total.len=%d  \n",dp->len,vpkg_offset,len,vpkg_length);
-			if (len > dp->len - sizeof(dp_hdr_t) - dp_hdr->len) len = dp->len - sizeof(dp_hdr_t) - dp_hdr->len;
+                        tmplen = len; 
+			//if (len > dp->len - sizeof(dp_hdr_t) - dp_hdr->len) len = dp->len - sizeof(dp_hdr_t) - dp_hdr->len;
+			if (len > vpkg_length - dp_hdr->len) len = vpkg_length - dp_hdr->len;
             		stream_read(demuxer->stream, dp_data+dp_hdr->len, len);
+                        if (tmplen  > len)
+                          stream_skip (demuxer->stream, tmplen - len);
 			if((dp_data[dp_hdr->len]&0x20) && (sh_video->format==0x30335652)) --dp_hdr->chunks; else
 			dp_hdr->len+=len;
 			len=0;
