@@ -95,7 +95,7 @@ void avcodec_register_all(void)
     REGISTER_DECODER (WMV3, wmv3);
 
 	
-    REGISTER_ENCDEC  (AAC, aac);
+//    REGISTER_ENCDEC  (AAC, aac);
     REGISTER_ENCDEC  (AC3, ac3);
     REGISTER_DECODER (APE, ape);
     REGISTER_DECODER (COOK, cook);
