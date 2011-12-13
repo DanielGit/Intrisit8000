@@ -402,9 +402,13 @@ if(newpos==0 || newpos != s->pos)
       return 0;
     // Now seek
    // F("seek = %d s->sector_size = %d\n ",(int)newpos,s->sector_size);
-    if(s->seek(s,newpos)<=0) {
-      mp_msg(MSGT_STREAM,MSGL_ERR, "Seek failed\n");
-      return 0;
+    if( s->seek(s,newpos) <= 0 ) 
+	{
+		s->eof = 1;
+		s->buf_pos=s->buf_len=0;
+		F("Seek failed\n");
+		mp_msg(MSGT_STREAM,MSGL_ERR, "Seek failed\n");
+		return 0;
     }
 }
 #else

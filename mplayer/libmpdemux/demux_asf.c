@@ -347,6 +347,8 @@ static void get_payload_extension_data(demuxer_t *demux, unsigned char** pp, uns
 static int demux_asf_fill_buffer(demuxer_t *demux, demux_stream_t *ds){
   struct asf_priv* asf = demux->priv;
 
+  if( demux->stream->eof )
+  	return 0;
   demux->filepos=stream_tell(demux->stream);
   // Brodcast stream have movi_start==movi_end
   // Better test ?
