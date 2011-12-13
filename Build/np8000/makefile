@@ -60,7 +60,7 @@ CXXFLAGS   +=
 LDFLAGS    := -nostdlib -T $(LDS)
 
 # ¿âÎÄ¼þ
-MLIBS := mplayer_lib.a libavcodec.a libavcore.a libavformat.a libswscale.a libavutil.a libpostproc.a libmad.a libh264.a libmpeg4.a librv9.a libvc1.a spc.a fipop.a libmpeg2.a liba52.a
+MLIBS := mplayer_lib.a libavcodec.a libavcore.a libavformat.a libswscale.a libavutil.a libpostproc.a libmad.a libh264.a libmpeg4.a librv9.a libvc1.a spc.a fipop.a libmpeg2.a liba52.a libcookrm.a
 
 LIBS  = $(addprefix $(TOP)/UsrLib/libout/JZ4760B/, $(MLIBS))
 LIBS 	+= _noahos.a $(TOP)/Usrlib/libout/libgcc_mipsel.a $(TOP)/Usrlib/libout/mips_klibc.a

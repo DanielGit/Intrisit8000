@@ -96,7 +96,7 @@ OBJS-$(CONFIG_CDGRAPHICS_DECODER)      += cdgraphics.o
 OBJS-$(CONFIG_CINEPAK_DECODER)         += cinepak.o
 OBJS-$(CONFIG_CLJR_DECODER)            += cljr.o
 OBJS-$(CONFIG_CLJR_ENCODER)            += cljr.o
-OBJS-$(CONFIG_COOK_DECODER)            += cook.o
+OBJS-$(CONFIG_COOK_DECODER)            += cook_rm.o
 OBJS-$(CONFIG_CSCD_DECODER)            += cscd.o
 OBJS-$(CONFIG_CYUV_DECODER)            += cyuv.o
 OBJS-$(CONFIG_DCA_DECODER)             += dca.o synth_filter.o dcadsp.o mdct_fix.o fft_fix.o
@@ -669,10 +669,10 @@ aacdec.o:aacdec.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(CC_DEPFLAGS) -S -o aacdec.s $<
 	mxu_as aacdec.s > aacdec_mxu.s
 	$(CC) $(CFLAGS) $(LIBOBJFLAGS) -c -o $@ aacdec_mxu.s
-cook.o:cook.c
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(CC_DEPFLAGS) -S -o cook.s $<
-	mxu_as cook.s > cook_mxu.s
-	$(CC) $(CFLAGS) $(LIBOBJFLAGS) -c -o $@ cook_mxu.s
+cook_rm.o:cook_rm.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(CC_DEPFLAGS) -S -o cook_rm.s $<
+	mxu_as cook_rm.s > cook_rm_mxu.s
+	$(CC) $(CFLAGS) $(LIBOBJFLAGS) -c -o $@ cook_rm_mxu.s
 ac3dec.o:ac3dec.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(CC_DEPFLAGS) -S -o ac3dec.s $<
 	mxu_as ac3dec.s > ac3dec_mxu.s
