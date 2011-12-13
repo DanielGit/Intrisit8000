@@ -825,6 +825,8 @@ unsigned int head=0;
 int skipped=0;
 int max_packs=256; // 512kbyte
 int ret=0;
+int zero = 0;
+int old_key = 0;
 
 // System stream
 do{
@@ -836,8 +838,20 @@ do{
   if((head&0xFFFFFF00)!=0x100){
    // sync...
    demux->filepos-=skipped;
+   old_key = 0;
    while(1){
     int c=stream_read_char(demux->stream);
+	if( c == old_key )
+		zero++;
+	else
+	{
+		old_key = c;
+		zero = 0;
+	}
+
+	if( zero >= 10 * 1024 )
+		break;
+	
     if(c<0) break; //EOF
     head<<=8;
     if(head!=0x100){

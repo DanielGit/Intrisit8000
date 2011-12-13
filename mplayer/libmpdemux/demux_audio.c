@@ -659,6 +659,9 @@ static void high_res_mp3_seek(demuxer_t *demuxer,float time) {
   nf = time*sh->samplerate/sh->audio.dwScale;
   while(nf > 0) {
     stream_read(demuxer->stream,hdr,4);
+	//修改另类的MP3文件SEEK到没有文件的地方，出现错误的问题
+	if( demuxer->stream->eof )
+		break;
     len = mp_decode_mp3_header(hdr);
     if(len < 0) {
       stream_skip(demuxer->stream,-3);

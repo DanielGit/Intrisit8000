@@ -58,6 +58,9 @@ static const struct m_struct_st stream_opts = {
   stream_opts_fields
 };
 
+extern int noah_long_jump(int err);
+extern long BUFF_Seek (void *stream, long offset, int whence);
+
 static int fill_buffer(stream_t *s, char* buffer, int max_len){
 #ifdef __MINIOS__
   int r = BUFF_DirectRead((JZFS_FILE *)s->fd,buffer,max_len);
