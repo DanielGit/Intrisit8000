@@ -107,8 +107,8 @@ void avcodec_register_all(void)
     REGISTER_ENCDEC  (VORBIS, vorbis);
     REGISTER_DECODER (WAVPACK, wavpack);
     REGISTER_DECODER (WMAPRO, wmapro);
-    REGISTER_ENCDEC  (WMAV1, wmav1);
-    REGISTER_ENCDEC  (WMAV2, wmav2);
+    REGISTER_ENCDEC  (WMAV1, wmafixv1);
+    REGISTER_ENCDEC  (WMAV2, wmafixv2);
     REGISTER_DECODER (WMAVOICE, wmavoice);
     REGISTER_ENCDEC  (LIBOPENCORE_AMRNB, libopencore_amrnb);
 	

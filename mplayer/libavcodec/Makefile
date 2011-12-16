@@ -394,10 +394,11 @@ OBJS-$(CONFIG_VP8_DECODER)             += vp8.o vp8dsp.o vp56rac.o
 OBJS-$(CONFIG_VQA_DECODER)             += vqavideo.o
 OBJS-$(CONFIG_WAVPACK_DECODER)         += wavpack.o
 OBJS-$(CONFIG_WMAPRO_DECODER)          += wmaprodec.o wma.o
-OBJS-$(CONFIG_WMAV1_DECODER)           += wmadec.o wma.o aactab.o
-OBJS-$(CONFIG_WMAV1_ENCODER)           += wmaenc.o wma.o aactab.o
-OBJS-$(CONFIG_WMAV2_DECODER)           += wmadec.o wma.o aactab.o
-OBJS-$(CONFIG_WMAV2_ENCODER)           += wmaenc.o wma.o aactab.o
+#OBJS-$(CONFIG_WMAV1_DECODER)           += wmadec.o wma.o aactab.o
+#OBJS-$(CONFIG_WMAV1_ENCODER)           += wmaenc.o wma.o aactab.o
+#OBJS-$(CONFIG_WMAV2_DECODER)           += wmadec.o wma.o aactab.o
+#OBJS-$(CONFIG_WMAV2_ENCODER)           += wmaenc.o wma.o aactab.o
+
 OBJS-$(CONFIG_WMAVOICE_DECODER)        += wmavoice.o \
                                           celp_math.o celp_filters.o \
                                           acelp_vectors.o acelp_filters.o

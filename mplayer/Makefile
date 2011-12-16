@@ -768,7 +768,7 @@ COMMON_LIBS-$(LIBAVCODEC_A)       += liba52/liba52.a
 COMMON_LIBS		          += libmad/libmad.a
 COMMON_LIBS		          += libamr/spc.a
 COMMON_LIBS		          += libamr/fipop.a
-COMMON_LIBS		          += libcookrm.a
+COMMON_LIBS		          += libcookrm.a libwmafix.a
 COMMON_LIBS += $(COMMON_LIBS-yes)
 
 OBJS_COMMON    += $(addsuffix .o, $(basename $(SRCS_COMMON)))
@@ -957,6 +957,9 @@ mplayer$(EXESUF): EXTRALIBS += $(EXTRALIBS_MPLAYER)
 endif
 
 libcookrm.a: libjz4760b/libcookrm.xa
+	cp -fv $< $@
+
+libwmafix.a: libjz4760b/libwmafix.xa
 	cp -fv $< $@
 
 mplayer_aux.c:  Makefile $(MPEG4_P1_BIN) $(H264_P1_BIN) $(VC1_P1_BIN) $(RV9_P1_BIN)
