@@ -14,6 +14,7 @@ OBJS = allformats.o         \
        sdp.o                \
        seek.o               \
        utils.o              \
+       variance.o           \
 
 # muxers/demuxers
 OBJS-$(CONFIG_A64_MUXER)                 += a64.o
@@ -317,3 +318,5 @@ TESTPROGS = timefilter
 include $(SUBDIR)../subdir.mak
 
 $(SUBDIR)output-example$(EXESUF): ELIBS = -lswscale
+variance.o:variance.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(CC_DEPFLAGS) -mhard-float -c -o variance.o $<

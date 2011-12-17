@@ -2155,7 +2155,7 @@ static int tb_unreliable(AVCodecContext *c){
     return 0;
 }
 
-static float tmpdata[ 60 * 12 + 5] = 
+float time_adj_data[ 60 * 12 + 5] = 
 {   0.000000, 0.083333, 0.166667, 0.250000, 0.333333, 0.416667, 0.500000, 0.583333, 
     0.666667, 0.750000, 0.833333, 0.916667, 1.000000, 1.083333, 1.166667, 1.250000, 
     1.333333, 1.416667, 1.500000, 1.583333, 1.666667, 1.750000, 1.833333, 1.916667, 
@@ -2249,20 +2249,24 @@ static float tmpdata[ 60 * 12 + 5] =
     23.976025, 29.970030, 59.940060, 11.988012, 14.985015, 
  };
 
+extern void variance_cal (double *res, double *dur);
+static double cdur __attribute__   ((aligned (8)));
+
+static struct {
+  int64_t last_dts;
+  int64_t duration_gcd;
+  double duration_error[MAX_STD_TIMEBASES];
+  int64_t codec_info_duration;
+  int duration_count;
+} info[MAX_STREAMS] __attribute__   ((aligned (8))) = {{0}} ;
+
 int av_find_stream_info(AVFormatContext *ic)
 {
     int i, count, ret, read_size, j;
     AVStream *st;
     AVPacket pkt1, *pkt;
     int64_t old_offset = url_ftell(ic->pb);
-    struct {
-        int64_t last_dts;
-        int64_t duration_gcd;
-        int duration_count;
-        double duration_error[MAX_STD_TIMEBASES];
-        int64_t codec_info_duration;
-    } info[MAX_STREAMS] = {{0}};
-
+    
     for(i=0;i<ic->nb_streams;i++) {
         st = ic->streams[i];
         if (st->codec->codec_id == CODEC_ID_AAC) {
@@ -2381,22 +2385,39 @@ int av_find_stream_info(AVFormatContext *ic)
             int64_t duration= pkt->dts - last;
 
             if(pkt->dts != AV_NOPTS_VALUE && last != AV_NOPTS_VALUE && duration>0){
-                double dur= duration * av_q2d(st->time_base);
-
+                cdur= duration * av_q2d(st->time_base);
 //                if(st->codec->codec_type == AVMEDIA_TYPE_VIDEO)
 //                    av_log(NULL, AV_LOG_ERROR, "%f\n", dur);
                 if(info[index].duration_count < 2)
                     memset(info[index].duration_error, 0, sizeof(info[index].duration_error));
 #if 1
+#if 0   //TEST RES
+double duration_error2[MAX_STD_TIMEBASES];
+for(i=1; i<MAX_STD_TIMEBASES; i++)
+  duration_error2[i] = info[index].duration_error[i];
+#endif  
+            
+                variance_cal(info[index].duration_error, &cdur);
+#if 0 //TEST RES                
                 for(i=1; i<MAX_STD_TIMEBASES; i++){
-                    int ticks;
-                    double error;
-
-                    ticks= (int)(dur*tmpdata[i] + 0.5);
-                    error= dur - ticks/tmpdata[i];
-
-                    info[index].duration_error[i] += error*error;
+                    int framerate= get_std_framerate(i);
+                    int ticks= lrintf(cdur*framerate/(1001*12));
+                    double error= cdur - ticks*1001*12/(double)framerate;                                    
+                    duration_error2[i] += error*error;
                 }
+                
+                for(i=1; i<MAX_STD_TIMEBASES; i++)
+                {
+                  if (duration_error2[i] - info[index].duration_error[i] <= duration_error2[i] *0.001 
+               	      && duration_error2[i] - info[index].duration_error[i] >= -duration_error2[i] * 0.001
+               	      || duration_error2[i] - info[index].duration_error[i] < 0.0000000001
+               	         && duration_error2[i] - info[index].duration_error[i] > -0.0000000001)
+                    ;//printf ("derr = %lf terr = %lf\n", derr, terr);
+                  else
+                    kprintf (" +++++++++++ i = %d, index = %d  ++++++++++\n", i, index);
+               }
+               kprintf ("++++++ compare end +++++\n");
+#endif           
 #else                    
                 for(i=1; i<MAX_STD_TIMEBASES; i++){
                     int framerate= get_std_framerate(i);
@@ -2437,7 +2458,6 @@ int av_find_stream_info(AVFormatContext *ic)
           count++;
 	}
     }
-
     // close codecs which were opened in try_decode_frame()
     for(i=0;i<ic->nb_streams;i++) {
         st = ic->streams[i];

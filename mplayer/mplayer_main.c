@@ -2969,12 +2969,18 @@ int gui_no_filename=0;
 mp_memory_init();
 
   {
-	  unsigned int eaddr;
-	  eaddr = i_mfc0_2(30, 0);
+	  unsigned int eaddr, tmp;
+	  eaddr = i_mfc0_2(30, 0);  //Error PC
     kprintf ("\n\n+++++++ Error PC = 0x%08x +++++++\n\n", eaddr);
+    tmp = i_mfc0_2(12, 0);    // Status
+    kprintf ("\n\n+++++++ Status = 0x%08x +++++++\n\n", tmp);
+    tmp = tmp | (1 << 29);  //enable float
+    i_mtc0_2 (tmp, 12, 0);
+    tmp = i_mfc0_2(12, 0);    // Status
+    kprintf ("\n\n+++++++ Status = 0x%08x +++++++\n\n", tmp);    
 //    watchdog_init (10000);
 //    watchdog_enable ();
-    kprintf ("\n\n watch dog init and enable complete \n\n");
+//    kprintf ("\n\n watch dog init and enable complete \n\n");
   }
 
 #ifdef JZC_CRC_VER
