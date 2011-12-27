@@ -41,6 +41,8 @@ SECTIONS
 		../../UsrLib/libout/JZ4760B/spc.a:(.data)
 		../../UsrLib/libout/JZ4760B/fipop.a:(.data)
 		../../UsrLib/libout/JZ4760B/libmpeg2.a:(.data)
+		../../UsrLib/libout/JZ4760B/libcookrm.a:(.data)
+		../../UsrLib/libout/JZ4760B/libwmafix.a:(.data)
 		_end_mplayer_data = ABSOLUTE(.);
 	} > ram
 	
@@ -92,6 +94,8 @@ SECTIONS
 		../../UsrLib/libout/JZ4760B/spc.a:(.sbss)
 		../../UsrLib/libout/JZ4760B/fipop.a:(.sbss)
 		../../UsrLib/libout/JZ4760B/libmpeg2.a:(.sbss)
+		../../UsrLib/libout/JZ4760B/libcookrm.a:(.sbss)
+		../../UsrLib/libout/JZ4760B/libwmafix.a:(.sbss)
 
 		../../UsrLib/libout/JZ4760B/mplayer_lib.a:(.scommon)
 		../../UsrLib/libout/JZ4760B/libavcodec.a:(.scommon)
@@ -108,6 +112,8 @@ SECTIONS
 		../../UsrLib/libout/JZ4760B/spc.a:(.scommon)
 		../../UsrLib/libout/JZ4760B/fipop.a:(.scommon)
 		../../UsrLib/libout/JZ4760B/libmpeg2.a:(.scommon)
+		../../UsrLib/libout/JZ4760B/libcookrm.a:(.scommon)
+		../../UsrLib/libout/JZ4760B/libwmafix.a:(.scommon)
 		_end_mplayer_sbss = ABSOLUTE(.);
 	}
 
@@ -135,6 +141,8 @@ SECTIONS
 		../../UsrLib/libout/JZ4760B/spc.a:(.bss)
 		../../UsrLib/libout/JZ4760B/fipop.a:(.bss)
 		../../UsrLib/libout/JZ4760B/libmpeg2.a:(.bss)
+		../../UsrLib/libout/JZ4760B/libcookrm.a:(.bss)
+		../../UsrLib/libout/JZ4760B/libwmafix.a:(.bss)
 
 		../../UsrLib/libout/JZ4760B/mplayer_lib.a:(COMMON)
 		../../UsrLib/libout/JZ4760B/libavcodec.a:(COMMON)
@@ -151,6 +159,8 @@ SECTIONS
 		../../UsrLib/libout/JZ4760B/spc.a:(COMMON)
 		../../UsrLib/libout/JZ4760B/fipop.a:(COMMON)
 		../../UsrLib/libout/JZ4760B/libmpeg2.a:(COMMON)
+		../../UsrLib/libout/JZ4760B/libcookrm.a:(COMMON)
+		../../UsrLib/libout/JZ4760B/libwmafix.a:(COMMON)
 		_end_mplayer_bss = ABSOLUTE(.);
 	}
 	
